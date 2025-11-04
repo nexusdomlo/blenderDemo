@@ -2,9 +2,9 @@ import os
 import subprocess
 
 # 配置参数
-img_dir = "/mnt/d"      # IMG文件夹路径
-tif_dir = "/mnt/d"      # TIF输出路径
-clip_dir = "/mnt/d"    # 裁剪后TIF输出路径
+img_dir = "D:\\Moon"      # IMG文件夹路径
+tif_dir = "D:\\Moon"      # TIF输出路径
+clip_dir = "D:\\Moon"    # 裁剪后TIF输出路径
 os.makedirs(tif_dir, exist_ok=True)
 os.makedirs(clip_dir, exist_ok=True)
 

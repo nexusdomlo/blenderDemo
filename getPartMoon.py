@@ -4,40 +4,44 @@ import mathutils # type: ignore
 import os
 
 # 经纬度范围
-lat_min, lat_max = -75, 0
-lon_min, lon_max = 0, 20
+lat_min, lat_max = -60, -30
+lon_min, lon_max = 10, 10
 sensor_width=5.632  # 传感器宽度，单位mm
 focal_length=4.877      # 焦距，单位mm
-height1=150
-height2=10
+height1=90
+height2=30
 # 计算视场角
 fov_rad = 2 * math.atan(sensor_width / (2 * focal_length))
 angel_offset1 =math.tan(fov_rad/2)*height1*360/(2*math.pi*1740) # 100km对应的角度偏移
 angel_offset2 =math.tan(fov_rad/2)*height2*360/(2*math.pi*1740)  # 50km对应的角度偏移
 path_lat_min, path_lat_max = lat_min+angel_offset1, lat_max-angel_offset2
 path_lon_min, path_lon_max = lon_min+angel_offset1, lon_max-angel_offset2
-end_time=1440
+end_time=240
 OUTPUT_DIR = "C:\\Application\\Moon\\output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # 预加载图片资源
 preload_images = {}
-for img_path in [
-    # "D:\Moon\lroc_color_poles_8k_30s_00s_00_20.tif",
-    # "D:\Moon\lroc_color_poles_8k_45s_30s_00_20.tif",
-    # "D:\Moon\lroc_color_poles_8k_60s_45s_00_20.tif",
-    # "D:\Moon\lroc_color_poles_8k_75s_60s_00_20.tif",
-    "D:\\Moon\\ldem_256_30s_00s_000_20_float.tif",
-    "D:\\Moon\\ldem_512_45s_30s_000_020_float.tif",
-    "D:\\Moon\\ldem_512_60s_45s_000_020_float.tif",
-    "D:\\Moon\\ldem_1024_75s_60s_000_020.tif"
-
-]:
-    if os.path.exists(img_path):
-        try:
-            preload_images[img_path] = bpy.data.images.load(img_path)
-        except Exception as e:
-            print(f"[Warn] 图片预加载失败: {img_path}", e)
+def preload_image_resources():
+    for img_path in [
+        # "D:\Moon\lroc_color_poles_8k_30s_00s_00_20.tif",
+        # "D:\Moon\lroc_color_poles_8k_45s_30s_00_20.tif",
+        # "D:\Moon\lroc_color_poles_8k_60s_45s_00_20.tif",
+        # "D:\Moon\lroc_color_poles_8k_75s_60s_00_20.tif",
+        "D:\\Moon\\ldem_256_30s_00s_000_20_float.tif",
+        "D:\\Moon\\ldem_512_45s_30s_000_020_float.tif",
+        "D:\\Moon\\ldem_512_60s_45s_000_020_float.tif",
+        "D:\\Moon\\ldem_1024_75s_60s_000_020.tif",
+        "D:\\Moon\\ldem_256_60s_30s_000_020_float.tif",
+        "D:\\Moon\\ldem_256_30s_00s_000_090_float.tif"
+    ]:
+        if os.path.exists(img_path):
+            try:
+                preload_images[img_path] = bpy.data.images.load(img_path)
+            except Exception as e:
+                print(f"[Warn] 图片预加载失败: {img_path}", e)
+        else:
+            print(f"[Warn] 图片文件不存在: {img_path}")
 
 
 def xyz_to_latlon(x, y, z):
@@ -46,7 +50,7 @@ def xyz_to_latlon(x, y, z):
     lon = math.degrees(math.atan2(y, x))
     return lat, lon
 
-def add_great_circle_curve(lat1, lon1, lat2, lon2, R, distance1=0, distance2=0, num_points=32, name='GreatCirclePath'):
+def add_great_circle_curve(lat1, lon1, lat2, lon2, R, distance1=0, distance2=0, num_points=64, name='GreatCirclePath'):
     def latlon_to_xyz(lat, lon, r):
         lat_rad = math.radians(lat)
         lon_rad = math.radians(lon)
@@ -70,7 +74,6 @@ def add_great_circle_curve(lat1, lon1, lat2, lon2, R, distance1=0, distance2=0, 
         pt = slerp(A, B, t).normalized() * (R + distance)
         points.append(pt)
 
-    import bpy
     curve_data = bpy.data.curves.new(name, type='CURVE')
     curve_data.dimensions = '3D'
     polyline = curve_data.splines.new('POLY')
@@ -167,7 +170,7 @@ def select_and_materialize_region(
             disp_image.image = bpy.data.images.load(normal_path)
         except Exception as e:
             print("[Warn] 加载置换贴图失败:", e)
-    disp_image.image.colorspace_settings.name = 'Non-Color'
+    # disp_image.image.colorspace_settings.name = 'Non-Color'
     # 节点连接
     try:
         links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
@@ -226,7 +229,6 @@ def select_and_materialize_region(
             print("[Warn] UV 归一化失败:", e)
     else:
         print("[Warn] 没有UV层, 无法操作")
-    
     return part_obj
 
 
@@ -247,7 +249,7 @@ bpy.ops.object.delete()
 
 # 添加一个半径为17.35的UV球
 bpy.ops.mesh.primitive_uv_sphere_add(
-    radius=173.8, 
+    radius=1738, 
     location=(0, 0, 0), 
     segments=360,      # 段数
     ring_count=180     # 环数
@@ -256,16 +258,16 @@ bpy.ops.mesh.primitive_uv_sphere_add(
 uv_sphere = bpy.context.active_object 
 mesh = uv_sphere.data
 
-uv_sphere_part1=select_and_materialize_region(uv_sphere, -30, 0, 0, 20, "", "D:\\Moon\\ldem_256_30s_00s_000_20_float.tif", scale=1.0)
+# uv_sphere_part1=select_and_materialize_region(uv_sphere, -60, -30, 0, 20, "", "D:\\Moon\\ldem_256_60s_30s_000_020_float.tif", scale=1.0)
 
-uv_sphere_part2=select_and_materialize_region(uv_sphere, -45, -30, 0, 20, "", "D:\\Moon\\ldem_512_45s_30s_000_020_float.tif",scale=1)
+# uv_sphere_part2=select_and_materialize_region(uv_sphere, -45, -30, 0, 20, "", "D:\\Moon\\ldem_512_45s_30s_000_020_float.tif",scale=1)
 
-uv_sphere_part3=select_and_materialize_region(uv_sphere, -60, -45,0, 20, "", "D:\\Moon\\ldem_512_60s_45s_000_020_float.tif",scale=1)
+# uv_sphere_part3=select_and_materialize_region(uv_sphere, -60, -45,0, 20, "", "D:\\Moon\\ldem_512_60s_45s_000_020_float.tif",scale=1)
 
-uv_sphere_part4=select_and_materialize_region(uv_sphere, -75, -60, 0, 20, "", "D:\\Moon\\ldem_1024_75s_60s_000_020.tif",scale=20)
-
+# uv_sphere_part4=select_and_materialize_region(uv_sphere, -75, -60, 0, 20, "", "D:\\Moon\\ldem_1024_75s_60s_000_020.tif",scale=20)
+uv_sphere_part5=select_and_materialize_region(uv_sphere, -30, 0, 0, 90, "", "D:\\Moon\\ldem_256_30s_00s_000_090_float.tif", scale=100)
 # 生成路径
-nurbs_path = add_great_circle_curve(path_lat_min, 10, path_lat_max, 10,  173.8, height1/10,height2/10) # 2.5
+nurbs_path = add_great_circle_curve(path_lat_max, lon_min, path_lat_min, lon_max,  1738, height1,height2) # 2.5
 nurbs_path.data.use_path = True
 nurbs_path.data.path_duration = end_time  # 24秒，1440帧
 nurbs_path.data.keyframe_insert(data_path="eval_time", frame=1)
@@ -295,7 +297,7 @@ camera.data.type = 'PERSP'  # 透视
 camera.data.lens = focal_length  # 焦距设置为10mm，可根据需要调整
 # camera.data.angle = math.radians(67.4)  # 视野67.4度
 camera.data.clip_start = 0.1    # 近裁剪面
-camera.data.clip_end = 1000
+camera.data.clip_end = 100000
 # 设置渲染输出属性（对应图2）
 scene = bpy.context.scene
 scene.render.resolution_x = 1024    

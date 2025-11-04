@@ -20,7 +20,7 @@ path_lat_min, path_lat_max = 15-angel_offset1, -15+angel_offset2
 path_lon_min, path_lon_max = 180+angel_offset1, 240-angel_offset2
 end_time=7200
 filepath_texture = "D:\\All_moon_128\\outputFile\\lroc_color_poles.tif"
-filepath_normal = "D:\\Moon\\cropped.tif"
+filepath_normal = "D:\\All_moon_128\\outputFile\\ldem_128_float_small_small.png"
 OUTPUT_DIR = "C:\\Application\\Moon\\output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -265,7 +265,7 @@ bpy.ops.object.delete()
 
 # 添加一个半径为17.35的UV球
 bpy.ops.mesh.primitive_uv_sphere_add(
-    radius=173.8, 
+    radius=1738, 
     location=(0, 0, 0), 
     segments=360,      # 段数
     ring_count=180     # 环数
@@ -273,11 +273,11 @@ bpy.ops.mesh.primitive_uv_sphere_add(
 uv_sphere = bpy.context.active_object 
 mesh = uv_sphere.data
 
-uv_part=select_and_materialize_region(uv_sphere, -90, 90, 0, 360, filepath_texture, "")
+uv_part=select_and_materialize_region(uv_sphere, -90, 90, 0, 360, filepath_texture, filepath_normal, group_name="Full_Moon")
 
 
 # 生成路径
-nurbs_path = add_great_circle_curve(path_lat_min, path_lon_min, path_lat_max, path_lon_max, 173.8, height1/10,height2/10) # 2.5
+nurbs_path = add_great_circle_curve(path_lat_min, path_lon_min, path_lat_max, path_lon_max, 173.8, height1,height2) # 2.5
 nurbs_path.data.use_path = True
 nurbs_path.data.path_duration = end_time  # 24秒，2880帧
 nurbs_path.data.keyframe_insert(data_path="eval_time", frame=1)
@@ -407,41 +407,41 @@ other_camera_track_constraint.up_axis = 'UP_Y'          # 向上轴 Y
 other_camera.data.type = 'PERSP'  # 透视
 other_camera.data.lens = 50  # 焦距设置为10mm，可根据需要调整
 # other_camera.data.angle = math.radians(67.4)  # 视野67.4度
-other_camera.data.clip_start = 0.1    # 近裁剪面
-other_camera.data.clip_end = 1000
+other_camera.data.clip_start = 1    # 近裁剪面
+other_camera.data.clip_end = 1000000
 # 确保激活相机
 bpy.context.view_layer.objects.active = other_camera
 
 # 设置场景的帧范围,准备拍摄渲染
-scene.frame_set(1)
-scene.frame_start = 1
-scene.frame_end = end_time
-# 拍摄指定数量的照片
-num_photos = 1000
-frames = [round(1 + i * (scene.frame_end - 1) / (num_photos - 1)) for i in range(num_photos)]
-for idx, f in enumerate(frames):
-    scene.frame_set(f)
-    latlon = get_camera_latlon(camera, 174)
-    lat_str = f"{latlon[0]:.4f}"
-    lon_str = f"{latlon[1]:.4f}"
-    matrix = camera.matrix_world
-    rotation_euler = matrix.to_euler('ZYX')
-    rotation_deg = tuple(math.degrees(a) for a in rotation_euler)
-    rot_str = "_".join([f"{r:.2f}" for r in rotation_deg])
-    cam_loc = matrix.translation
-    loc_str = "_".join([f"{c:.2f}" for c in (cam_loc.x, cam_loc.y, cam_loc.z)])
-    out_path = os.path.join(
-        OUTPUT_DIR,
-        f"frame_{idx+1:04d}_{lat_str}_{lon_str}_{rot_str}_{loc_str}.png"
-    )
-    scene.render.filepath = out_path
-    print(f"Frame {f} Camera Euler Rotation (degrees): {rotation_deg}")
-    start_time = time.time()
-    print(f"[Info] 渲染第 {idx+1}/{num_photos}")
-    try:
-        bpy.ops.render.render(write_still=True)
-        elapsed = time.time() - start_time
-        print(f"[Info] 渲染完成: {out_path}，耗时 {elapsed:.2f} 秒")
-    except Exception as e:
-        print(f"[Error] 渲染失败 frame {idx+1}: {e}")
-print("[Info] 渲染结束")
+# scene.frame_set(1)
+# scene.frame_start = 1
+# scene.frame_end = end_time
+# # 拍摄指定数量的照片
+# num_photos = 1000
+# frames = [round(1 + i * (scene.frame_end - 1) / (num_photos - 1)) for i in range(num_photos)]
+# for idx, f in enumerate(frames):
+#     scene.frame_set(f)
+#     latlon = get_camera_latlon(camera, 174)
+#     lat_str = f"{latlon[0]:.4f}"
+#     lon_str = f"{latlon[1]:.4f}"
+#     matrix = camera.matrix_world
+#     rotation_euler = matrix.to_euler('ZYX')
+#     rotation_deg = tuple(math.degrees(a) for a in rotation_euler)
+#     rot_str = "_".join([f"{r:.2f}" for r in rotation_deg])
+#     cam_loc = matrix.translation
+#     loc_str = "_".join([f"{c:.2f}" for c in (cam_loc.x, cam_loc.y, cam_loc.z)])
+#     out_path = os.path.join(
+#         OUTPUT_DIR,
+#         f"frame_{idx+1:04d}_{lat_str}_{lon_str}_{rot_str}_{loc_str}.png"
+#     )
+#     scene.render.filepath = out_path
+#     print(f"Frame {f} Camera Euler Rotation (degrees): {rotation_deg}")
+#     start_time = time.time()
+#     print(f"[Info] 渲染第 {idx+1}/{num_photos}")
+#     try:
+#         bpy.ops.render.render(write_still=True)
+#         elapsed = time.time() - start_time
+#         print(f"[Info] 渲染完成: {out_path}，耗时 {elapsed:.2f} 秒")
+#     except Exception as e:
+#         print(f"[Error] 渲染失败 frame {idx+1}: {e}")
+# print("[Info] 渲染结束")
