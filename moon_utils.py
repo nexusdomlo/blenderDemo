@@ -1,5 +1,5 @@
 import math
-import mathutils
+import mathutils # type: ignore
 
 def add_great_circle_curve(lat1, lon1, lat2, lon2, R, distance1=0, distance2=0, num_points=32, name='GreatCirclePath'):
     def latlon_to_xyz(lat, lon, r):
