@@ -28,4 +28,14 @@ python all_moon.py
 python gdalGetPicture.py
 ```
 
-### test文件，真的就是test而已，没啥用，让你尝试你的代码是否可行，然后可行在自己生成新的文件
+### 将32为浮点数tif图变成16位无符号的png图
+```
+python toPng.py #自己在代码里面修改路径就行
+```
+
+### test文件，真的就是test而已，没啥用，让你尝试你的代码是否可行，然后可行在自己生成新的文件(现在暂时就是用来测试getPartMoon的间断生成功能)
+```
+python test.py 
+# 自己在源码中填入需要使用的预加载图像，同时自己添加或者修改select_and_materialize_region(obj, lat_min, lat_max, lon_min, lon_max, texture_path, normal_path, group_name="Selected_Faces_Group",scale=1.0,visible_start_frame=81,visible_end_frame=160),让对应的区域加载你需要的图片,选择渲染的时间
+```
+

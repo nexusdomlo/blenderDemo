@@ -4,14 +4,14 @@ import mathutils # type: ignore
 import os
 
 # 经纬度范围
-lat_min, lat_max = -90, 0
+lat_min, lat_max = -60, 0
 lon_min, lon_max = 0, 90
 sensor_width=5.632  # 传感器宽度，单位mm
 focal_length=4.877      # 焦距，单位mm
 height1=150 #起始高度
 height2=90 #到南纬30度时的高度
-# height3=30 #到南纬60度时的高度 (未使用)
-# height4=1  #到月球表面时的高度 (未使用)
+height3=30 #到南纬60度时的高度
+height4=1  #到月球表面时的高度
 # 计算视场角
 fov_rad = 2 * math.atan(sensor_width / (2 * focal_length))
 angel_offset1 =math.tan(fov_rad/2)*height1*360/(2*math.pi*1740) # 100km对应的角度偏移
@@ -26,12 +26,9 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 preload_images = {}
 def preload_image_resources():
     for img_path in [
-        # "D:\Moon\lroc_color_poles_8k_30s_00s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_45s_30s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_60s_45s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_75s_60s_00_20.tif",
         "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_000_090_.tif",
         "D:\\All_moon_128\\outputFile\\lroc_color_poles_60s_30s_000_090_.tif",
+        "D:\\All_moon_128\\outputFile\\lroc_color_poles_75s_60s_000_090_.tif"
         "D:\\Moon\\ldem_256_30s_00s_000_090_float.tif",
         "D:\\Moon\\ldem_256_60s_30s_000_090_float.tif",
         "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif"
@@ -90,6 +87,8 @@ def select_and_materialize_region(
     texture_path, normal_path, 
     group_name="Selected_Faces_Group",
     scale=1.0,
+    visible_start_frame=None,
+    visible_end_frame=None,
 ):
     """
     提取指定经纬度范围的顶点组，并为其添加材质和节点连接
@@ -102,58 +101,41 @@ def select_and_materialize_region(
     else:
         vgroup = obj.vertex_groups[group_name]
 
-    # 使用 bmesh 进行更稳定的网格操作
-    import bmesh # type: ignore
+    # 进入编辑模式并取消所有选择
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.object.mode_set(mode='OBJECT')
 
-    # 确保在对象模式
-    if obj.mode == 'EDIT':
-        bpy.ops.object.mode_set(mode='OBJECT')
+    selected_verts = set()
+    selected_polys = []
 
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.verts.ensure_lookup_table()
-    bm.faces.ensure_lookup_table()
-
-    faces_to_select = []
-    for face in bm.faces:
-        # Calculate face center in world coordinates
-        center_local = face.calc_center_median()
-        center_world = obj.matrix_world @ center_local
-        
-        lat, lon = xyz_to_latlon(center_world.x, center_world.y, center_world.z)
+    # 选中目标区域的面，并收集顶点
+    for poly in mesh.polygons:
+        co = obj.matrix_world @ poly.center
+        lat, lon = xyz_to_latlon(co.x, co.y, co.z)
         if lon < 0:
             lon += 360
-        
-        # Select face if its center is within the bounds
         if lat_min <= lat <= lat_max and lon_min <= lon <= lon_max:
-            faces_to_select.append(face)
+            poly.select = True
+            for vidx in poly.vertices:
+                selected_verts.add(vidx)
 
-    print(f"Found {len(faces_to_select)} polygons to select for region '{group_name}'.")
-
-    if not faces_to_select:
-        print(f"[Warn] No polygons found within the lat/lon range for region '{group_name}'.")
-        bm.free()
-        return None
-
-    # 使用 bmesh.ops 分离几何体
-    geom = bmesh.ops.duplicate(bm, geom=faces_to_select)['geom']
-    
-    # 创建一个新的 bmesh 来包含复制的几何体
-    new_bm = bmesh.new()
-    # 从复制的几何体中提取面
-    faces = [ele for ele in geom if isinstance(ele, bmesh.types.BMFace)]
-    # 将这些面添加到新的 bmesh 中
-    for face in faces:
-        new_bm.faces.new([new_bm.verts.new(v.co) for v in face.verts])
-
-    # 创建新网格和新对象
-    new_mesh = bpy.data.meshes.new(f"{group_name}_mesh")
-    new_bm.to_mesh(new_mesh)
-    new_bm.free()
-    bm.free()
-
-    part_obj = bpy.data.objects.new(group_name, new_mesh)
-    bpy.context.collection.objects.link(part_obj)
+    # 回到编辑模式，分离选中面
+    bpy.ops.object.mode_set(mode='EDIT')
+    pre_objs = set(bpy.context.scene.objects)
+    try:
+        bpy.ops.mesh.separate(type='SELECTED')
+    except Exception as e:
+        print("Separate failed:", e)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.context.view_layer.update()
+    post_objs = set(bpy.context.scene.objects)
+    new_objs = list(post_objs - pre_objs)
+    if new_objs:
+        part_obj = new_objs[0]
+    else:
+        part_obj = obj
 
     # 获取分离出来的新对象
     bpy.context.view_layer.objects.active = part_obj
@@ -221,7 +203,7 @@ def select_and_materialize_region(
     try:
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
-        #细分值，可根据需要调整 (从8降低到3，避免崩溃)
+        #细分值，可根据需要调整
         bpy.ops.mesh.subdivide(number_cuts=3)
         bpy.ops.object.mode_set(mode='OBJECT')
     except Exception as e:
@@ -247,7 +229,32 @@ def select_and_materialize_region(
             print("[Warn] UV 归一化失败:", e)
     else:
         print("[Warn] 没有UV层, 无法操作")
+        # === 可见性动画 ===
+    if visible_start_frame is not None and visible_end_frame is not None:
+        # 在指定范围外，物体是隐藏的
+        part_obj.hide_viewport = True
+        part_obj.hide_render = True
+        part_obj.keyframe_insert(data_path="hide_viewport", frame=visible_start_frame - 1)
+        part_obj.keyframe_insert(data_path="hide_render", frame=visible_start_frame - 1)
+
+        # 在指定范围内，物体是可见的
+        part_obj.hide_viewport = False
+        part_obj.hide_render = False
+        part_obj.keyframe_insert(data_path="hide_viewport", frame=visible_start_frame)
+        part_obj.keyframe_insert(data_path="hide_render", frame=visible_start_frame)
+
+        # 确保在范围结束时仍然可见
+        part_obj.keyframe_insert(data_path="hide_viewport", frame=visible_end_frame)
+        part_obj.keyframe_insert(data_path="hide_render", frame=visible_end_frame)
+
+        # 范围结束后，再次隐藏
+        part_obj.hide_viewport = True
+        part_obj.hide_render = True
+        part_obj.keyframe_insert(data_path="hide_viewport", frame=visible_end_frame + 1)
+        part_obj.keyframe_insert(data_path="hide_render", frame=visible_end_frame + 1)
+
     return part_obj
+
 
 def setup_camera(
     sensor_width=11.26, 
@@ -323,136 +330,65 @@ def setup_camera(
     return camera
 
 def clean_scene(whiteList=None):
-    """
-    清空场景，保留白名单中的对象
-    :param whitelist: 不清除的对象名称列表，如 ['Camera', 'Light']
-    """
     if whiteList is None:
         whiteList = []
-    # 取消所有对象的隐藏状态，避免检测不到，导致没有办法清楚对象
+    # 取消所有对象的隐藏状态
     for obj in bpy.data.objects:
-        try:
-            obj.hide_set(False)
-        except Exception:
-            pass
-    # 清空场景（只选中非白名单对象）
+        obj.hide_set(False)
+        obj.hide_viewport = False
+        obj.hide_render = False
+    # 切换到 Object 模式
     if bpy.context.active_object:
         try:
             bpy.ops.object.mode_set(mode='OBJECT')
         except Exception:
             pass
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in bpy.data.objects:
-        if obj.name not in whiteList:
-            obj.select_set(True)
+    # 删除所有对象（包括所有集合中的对象）
+    bpy.ops.object.select_all(action='SELECT')
+    for obj in bpy.context.selected_objects:
+        if obj.name in whiteList:
+            obj.select_set(False)
     bpy.ops.object.delete()
-
-# ------------------- 基于时间的核心逻辑部分 -------------------
-
-# 1. 定义所有需要高精度加载的区域信息，并指定加载/卸载的帧数
-# 我们不再立即创建它们，而是将信息存储起来
-high_detail_regions = [
-    {
-        "name": "region_30s_00s_0_90",
-        "load_frame": 1,       # 在第 1 帧开始加载
-        "unload_frame": 120,   # 在第 120 帧卸载
-        "lat_min": -30, "lat_max": 0, "lon_min": 0, "lon_max": 90,
-        "texture_path": "",
-        "normal_path": "",
-        "scale": 100,
-        "obj": None, # 用于存储动态创建的对象
-        "is_loaded": False # 状态标记
-    },
-    {
-        "name": "region_60s_30s_0_90",
-        "load_frame": 100,     # 在第 100 帧开始加载
-        "unload_frame": 240,   # 在第 240 帧卸载
-        "lat_min": -60, "lat_max": -30, "lon_min": 0, "lon_max": 90,
-        "texture_path": "",
-        "normal_path": "",
-        "scale": 100,
-        "obj": None,
-        "is_loaded": False
-    },
-    # 你可以继续在这里添加更多区域，并规划好它们的加载/卸载时间
-]
-
-# 2. 定义基于时间的帧更改处理函数
-def dynamic_loader_by_time(scene):
-    """
-    每一帧都会执行此函数，用于检查当前帧数并动态加载/卸载区域。
-    """
-    current_frame = scene.frame_current
-    print(f"Frame {current_frame}: Checking regions...")
-
-    # 遍历所有高精度区域，判断是否需要加载
-    for region in high_detail_regions:
-        # 判断当前帧是否在区域的有效时间范围内
-        is_in_time_range = (region["load_frame"] <= current_frame < region["unload_frame"])
-
-        # 如果在时间范围内，并且该区域尚未加载
-        if is_in_time_range and not region["is_loaded"]:
-            print(f"  -> Time to load region '{region['name']}'...")
-            base_sphere = bpy.data.objects.get("BaseSphere")
-            if base_sphere:
-                new_obj = select_and_materialize_region(
-                    base_sphere,
-                    region["lat_min"], region["lat_max"], region["lon_min"], region["lon_max"],
-                    region["texture_path"], region["normal_path"],
-                    group_name=region["name"],
-                    scale=region["scale"]
-                )
-                # 只有在成功创建对象后才更新状态
-                if new_obj:
-                    region["obj"] = new_obj
-                    region["is_loaded"] = True
-                    print(f"  -> Region '{region['name']}' loaded successfully.")
-                else:
-                    print(f"  -> [Error] Failed to load region '{region['name']}'.")
-
-        # 如果不在时间范围内，并且该区域已经加载了
-        elif not is_in_time_range and region["is_loaded"]:
-            print(f"  -> Time to unload region '{region['name']}'...")
-            if region["obj"] and region["obj"].name in bpy.data.objects:
-                bpy.data.objects.remove(region["obj"], do_unlink=True)
-            region["obj"] = None
-            region["is_loaded"] = False
-            print(f"  -> Region '{region['name']}' unloaded.")
-
-
-# 3. 注册帧更改处理函数
-def clear_handlers():
-    for handler in bpy.app.handlers.frame_change_pre:
-        if handler.__name__ == 'dynamic_loader_by_time':
-            bpy.app.handlers.frame_change_pre.remove(handler)
-
-# 清空场景
+    # 清理孤立数据块
+    for block in bpy.data.meshes:
+        if block.users == 0:
+            bpy.data.meshes.remove(block)
+    for block in bpy.data.materials:
+        if block.users == 0:
+            bpy.data.materials.remove(block)
+    for block in bpy.data.images:
+        if block.users == 0:
+            bpy.data.images.remove(block)
 clean_scene()
-clear_handlers()
-
-bpy.app.handlers.frame_change_pre.append(dynamic_loader_by_time)
-
-
-# ------------------- 主脚本流程修改 -------------------
-
-
-
-# 预加载图片资源，避免动画播放时卡顿
-preload_image_resources()
-
-# 添加一个半径为17.38的UV球
+# 添加一个半径为17.35的UV球
 bpy.ops.mesh.primitive_uv_sphere_add(
     radius=1738, 
     location=(0, 0, 0), 
-    segments=360,
-    ring_count=180
+    segments=360,      # 段数
+    ring_count=180     # 环数
 )
 #获得UV球体对象
 uv_sphere = bpy.context.active_object 
-uv_sphere.name = "BaseSphere"
 mesh = uv_sphere.data
 
-# 【重要】不再在这里直接创建所有高精度部分
+uv_sphere_part1=select_and_materialize_region(uv_sphere, -30, 0, 0, 90, 
+                                              "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_000_090_.tif", 
+                                              "D:\\Moon\\ldem_256_30s_00s_000_090_float.tif", 
+                                              scale=100, 
+                                              visible_start_frame=1, 
+                                              visible_end_frame=80)
+uv_sphere_part2=select_and_materialize_region(uv_sphere, -60, -30, 0, 90, 
+                                              "D:\\All_moon_128\\outputFile\\lroc_color_poles_60s_30s_000_090_.tif", 
+                                              "D:\\Moon\\ldem_256_60s_30s_000_090_float.tif", 
+                                              scale=100,
+                                              visible_start_frame=81, 
+                                              visible_end_frame=160)
+uv_sphere_part3=select_and_materialize_region(uv_sphere, -75, -60, 0, 90, 
+                                              "D:\\All_moon_128\\outputFile\\lroc_color_poles_75s_60s_000_090_.tif", 
+                                              "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif", 
+                                              scale=100,
+                                              visible_start_frame=161, 
+                                              visible_end_frame=240)
 
 #  生成路径
 nurbs_path = add_great_circle_curve(path_lat_max, path_lon_max, path_lat_min, path_lon_min,  1738, height1,height2) # 2.5
@@ -510,11 +446,6 @@ sun.rotation_euler = (math.radians(-10), math.radians(127.5), math.radians(0))
 scene = bpy.context.scene
 scene.frame_set(1)
 scene.frame_start = 1
-scene.frame_end = 240 # 假设总时长为240帧
-uv_sphere.hide_set(True)
-uv_sphere.hide_render = True
-
-print("="*50)
-print("基于时间的动态加载系统已设置。")
-print("在Blender中播放或渲染动画时，将根据当前帧数动态加载区域。")
-print("="*50)
+scene.frame_end = end_time
+uv_sphere.hide_set(True)  # 在视图中隐藏球体
+uv_sphere.hide_render=True # 在渲染中隐藏球体

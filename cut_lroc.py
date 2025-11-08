@@ -2,13 +2,13 @@ import subprocess
 #裁剪lroc，月球表面材质图
 
 # 原始tif路径和输出路径
-input_tif = r"D:\All_moon_128\outputFile\lroc_color_poles.tif"
-output_tif = r"D:\All_moon_128\outputFile\lroc_color_poles_75s_60s_000_090_.tif"
+input_tif = "D:\\All_moon_128\\outputFile\\lroc_color_poles.tif"
+output_tif = "D:\\All_moon_128\\outputFile\\lroc_color_poles_75s_60s_000_090_.tif"
 
 # 可自由修改的经纬度范围
 lon_min = 0
 lon_max = 90
-lat_min = -75
+lat_min = -75 
 lat_max = -60
 
 # tif的像素尺寸

@@ -4,37 +4,30 @@ import mathutils # type: ignore
 import os
 
 # 经纬度范围
-lat_min, lat_max = -60, 0
-lon_min, lon_max = 0, 90
+lat_min, lat_max = 0, 45
+lon_min, lon_max = 0, 30
 sensor_width=5.632  # 传感器宽度，单位mm
 focal_length=4.877      # 焦距，单位mm
 height1=150 #起始高度
-height2=90 #到南纬30度时的高度
-height3=30 #到南纬60度时的高度
-height4=1  #到月球表面时的高度
+height2=90 #结束高度
 # 计算视场角
 fov_rad = 2 * math.atan(sensor_width / (2 * focal_length))
-angel_offset1 =math.tan(fov_rad/2)*height1*360/(2*math.pi*1740) # 100km对应的角度偏移
-angel_offset2 =math.tan(fov_rad/2)*height2*360/(2*math.pi*1740)  # 50km对应的角度偏移
+angel_offset1 =math.tan(fov_rad/2)*height1*360/(2*math.pi*1740) # 起始高度的角度偏移
+angel_offset2 =math.tan(fov_rad/2)*height2*360/(2*math.pi*1740)  # 结束高度的角度偏移
 path_lat_min, path_lat_max = lat_min+angel_offset1, lat_max-angel_offset2
 path_lon_min, path_lon_max = lon_min+angel_offset1, lon_max-angel_offset2
-end_time=240
+end_time=240 # 动画结束帧数
 OUTPUT_DIR = "C:\\Application\\Moon\\output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
+resolution_x = 1024  #相机分辨率X
+resolution_y = 1024  #相机分辨率Y
+sun_rotation = (math.radians(-10), math.radians(127.5), math.radians(0)) #太阳光方向
 # 预加载图片资源
 preload_images = {}
 def preload_image_resources():
     for img_path in [
-        # "D:\Moon\lroc_color_poles_8k_30s_00s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_45s_30s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_60s_45s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_75s_60s_00_20.tif",
-        "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_000_090_.tif",
-        "D:\\All_moon_128\\outputFile\\lroc_color_poles_60s_30s_000_090_.tif",
-        "D:\\Moon\\ldem_256_30s_00s_000_090_float.tif",
-        "D:\\Moon\\ldem_256_60s_30s_000_090_float.tif",
-        "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif"
+        "D:\\Moon\\ldem_512_00n_45n_000_030_float.tif",
+        "D:\\All_moon_128\\outputFile\\lroc_color_poles_00n_45n_000_030_.tif"
     ]:
         if os.path.exists(img_path):
             try:
@@ -48,6 +41,26 @@ def xyz_to_latlon(x, y, z):
     r = math.sqrt(x**2 + y**2 + z**2)
     lat = math.degrees(math.asin(z / r))
     lon = math.degrees(math.atan2(y, x))
+    return lat, lon
+
+def get_camera_latlon(camera, sphere_radius):
+    cam_pos = camera.location
+    # 相机主光轴方向（世界坐标系下）
+    dir = camera.matrix_world.to_quaternion() @ mathutils.Vector((0, 0, -1))
+    dir = dir.normalized()
+    # 求交点
+    # cam_pos + t*dir = 球面上一点，|p| = sphere_radius
+    # => |cam_pos + t*dir| = sphere_radius
+    # 解一元二次方程
+    a = dir.dot(dir)
+    b = 2 * cam_pos.dot(dir)
+    c = cam_pos.dot(cam_pos) - sphere_radius**2
+    delta = b**2 - 4*a*c
+    if delta < 0:
+        return None  # 没有交点
+    t = (-b - math.sqrt(delta)) / (2*a)  # 取较小的t（即相机前方最近的交点）
+    p = cam_pos + t * dir
+    lat, lon = xyz_to_latlon(p.x, p.y, p.z)
     return lat, lon
 
 def add_great_circle_curve(lat1, lon1, lat2, lon2, R, distance1=0, distance2=0, num_points=64, name='GreatCirclePath'):
@@ -342,28 +355,12 @@ bpy.ops.mesh.primitive_uv_sphere_add(
 uv_sphere = bpy.context.active_object 
 mesh = uv_sphere.data
 
-# uv_sphere_part1=select_and_materialize_region(uv_sphere, -60, -30, 0, 20, "", "D:\\Moon\\ldem_256_60s_30s_000_020_float.tif", scale=1.0)
-
-# uv_sphere_part2=select_and_materialize_region(uv_sphere, -45, -30, 0, 20, "", "D:\\Moon\\ldem_512_45s_30s_000_020_float.tif",scale=1)
-
-# uv_sphere_part3=select_and_materialize_region(uv_sphere, -60, -45,0, 20, "", "D:\\Moon\\ldem_512_60s_45s_000_020_float.tif",scale=1)
-
-# uv_sphere_part4=select_and_materialize_region(uv_sphere, -75, -60, 0, 20, "", "D:\\Moon\\ldem_1024_75s_60s_000_020.tif",scale=20)
-uv_sphere_part5=select_and_materialize_region(uv_sphere, -30, 0, 0, 90, 
-                                              "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_000_090_.tif", 
-                                              "D:\\Moon\\ldem_256_30s_00s_000_090_float.tif", 
+uv_sphere_part5=select_and_materialize_region(uv_sphere, 0, 45, 0, 30, 
+                                              "D:\\All_moon_128\\outputFile\\lroc_color_poles_00n_45n_000_030_.tif", 
+                                              "D:\\Moon\\ldem_512_00n_45n_000_030_float.tif", 
                                               scale=100)
-uv_sphere_part6=select_and_materialize_region(uv_sphere, -60, -30, 0, 90, 
-                                              "D:\\All_moon_128\\outputFile\\lroc_color_poles_60s_30s_000_090_.tif", 
-                                              "D:\\Moon\\ldem_256_60s_30s_000_090_float.tif", 
-                                              scale=100)
-uv_sphere_part7=select_and_materialize_region(uv_sphere, -75, -60, 0, 90, 
-                                              "", 
-                                              "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif", 
-                                              scale=100)
-
 #  生成路径
-nurbs_path = add_great_circle_curve(path_lat_max, path_lon_max, path_lat_min, path_lon_min,  1738, height1,height2) # 2.5
+nurbs_path = add_great_circle_curve(path_lat_min, path_lon_min, path_lat_max, path_lon_max,  1738, height1,height2) # 2.5
 nurbs_path.data.use_path = True
 nurbs_path.data.path_duration = end_time  # 24秒，1440帧
 nurbs_path.data.keyframe_insert(data_path="eval_time", frame=1)
@@ -385,8 +382,8 @@ target.name = "CameraTarget"
 camera = setup_camera(
     sensor_width=sensor_width,
     focal_length=focal_length,
-    resolution_x=1024,
-    resolution_y=1024,
+    resolution_x=resolution_x,
+    resolution_y=resolution_y,
     fps=24,
     clip_start=0.1,
     clip_end=100000,
@@ -407,7 +404,7 @@ sun.data.angle = 0.526 * math.pi / 180  # 设置角度（度转弧度）
 sun.data.color = (1, 1, 1)    # 设置颜色为白色
 sun.data.use_shadow = True    # 开启阴影
 #修改太陽光方向
-sun.rotation_euler = (math.radians(-10), math.radians(127.5), math.radians(0))
+sun.rotation_euler = sun_rotation
 # 为太阳光添加 Track To 约束
 # sun_track_constraint = sun.constraints.new(type='TRACK_TO')
 # sun_track_constraint.target = camera           # 目标对象
