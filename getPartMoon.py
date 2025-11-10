@@ -26,15 +26,12 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 preload_images = {}
 def preload_image_resources():
     for img_path in [
-        # "D:\Moon\lroc_color_poles_8k_30s_00s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_45s_30s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_60s_45s_00_20.tif",
-        # "D:\Moon\lroc_color_poles_8k_75s_60s_00_20.tif",
         "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_000_090_.tif",
+        "D:\Moon\ldem_256_30s_00s_000_090_16bit_alpha.png",
         "D:\\All_moon_128\\outputFile\\lroc_color_poles_60s_30s_000_090_.tif",
-        "D:\\Moon\\ldem_256_30s_00s_000_090_float.tif",
-        "D:\\Moon\\ldem_256_60s_30s_000_090_float.tif",
-        "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif"
+        "D:\Moon\ldem_256_60s_30s_000_090_16bit_alpha.png",
+        "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_090_180_.tif",
+        "D:\\Moon\\ldem_256_30s_00s_090_180_16bit_alpha.png"
     ]:
         if os.path.exists(img_path):
             try:
@@ -43,6 +40,7 @@ def preload_image_resources():
                 print(f"[Warn] 图片预加载失败: {img_path}", e)
         else:
             print(f"[Warn] 图片文件不存在: {img_path}")
+
 
 def xyz_to_latlon(x, y, z):
     r = math.sqrt(x**2 + y**2 + z**2)
@@ -341,25 +339,19 @@ bpy.ops.mesh.primitive_uv_sphere_add(
 #获得UV球体对象
 uv_sphere = bpy.context.active_object 
 mesh = uv_sphere.data
-
-# uv_sphere_part1=select_and_materialize_region(uv_sphere, -60, -30, 0, 20, "", "D:\\Moon\\ldem_256_60s_30s_000_020_float.tif", scale=1.0)
-
-# uv_sphere_part2=select_and_materialize_region(uv_sphere, -45, -30, 0, 20, "", "D:\\Moon\\ldem_512_45s_30s_000_020_float.tif",scale=1)
-
-# uv_sphere_part3=select_and_materialize_region(uv_sphere, -60, -45,0, 20, "", "D:\\Moon\\ldem_512_60s_45s_000_020_float.tif",scale=1)
-
-# uv_sphere_part4=select_and_materialize_region(uv_sphere, -75, -60, 0, 20, "", "D:\\Moon\\ldem_1024_75s_60s_000_020.tif",scale=20)
-uv_sphere_part5=select_and_materialize_region(uv_sphere, -30, 0, 0, 90, 
-                                              "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_000_090_.tif", 
-                                              "D:\\Moon\\ldem_256_30s_00s_000_090_float.tif", 
+preload_image_resources()
+img_list = list(preload_images.values())
+uv_sphere_part1=select_and_materialize_region(uv_sphere, -30, 0, 0, 90, 
+                                              img_list[0].filepath, 
+                                              img_list[1].filepath, 
                                               scale=100)
-uv_sphere_part6=select_and_materialize_region(uv_sphere, -60, -30, 0, 90, 
-                                              "D:\\All_moon_128\\outputFile\\lroc_color_poles_60s_30s_000_090_.tif", 
-                                              "D:\\Moon\\ldem_256_60s_30s_000_090_float.tif", 
+uv_sphere_part2=select_and_materialize_region(uv_sphere, -60, -30, 0, 90, 
+                                              img_list[2].filepath, 
+                                              img_list[3].filepath, 
                                               scale=100)
-uv_sphere_part7=select_and_materialize_region(uv_sphere, -75, -60, 0, 90, 
-                                              "", 
-                                              "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif", 
+uv_sphere_part3=select_and_materialize_region(uv_sphere, -30, 0, 90, 180, 
+                                              img_list[4].filepath, 
+                                              img_list[5].filepath, 
                                               scale=100)
 
 #  生成路径

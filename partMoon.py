@@ -1,14 +1,33 @@
+import bpy # type: ignore
 import math
 import mathutils # type: ignore
-import bpy # type: ignore
+import os
+
+# 经纬度范围
+lat_min, lat_max = -60, 0
+lon_min, lon_max = 0, 90
+sensor_width=5.632  # 传感器宽度，单位mm
+focal_length=4.877      # 焦距，单位mm
+height1=150 #起始高度
+height2=90 #到南纬30度时的高度
+height3=30 #到南纬60度时的高度
+height4=1  #到月球表面时的高度
+# 计算视场角
+fov_rad = 2 * math.atan(sensor_width / (2 * focal_length))
+angel_offset1 =math.tan(fov_rad/2)*height1*360/(2*math.pi*1740) # 100km对应的角度偏移
+angel_offset2 =math.tan(fov_rad/2)*height2*360/(2*math.pi*1740)  # 50km对应的角度偏移
+path_lat_min, path_lat_max = lat_min+angel_offset1, lat_max-angel_offset2
+path_lon_min, path_lon_max = lon_min+angel_offset1, lon_max-angel_offset2
+end_time=240
+OUTPUT_DIR = "C:\\Application\\Moon\\output"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# 预加载图片资源
+preload_images = {}
 def preload_image_resources():
     for img_path in [
-        "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_000_090_.tif",
-        "D:\Moon\ldem_256_30s_00s_000_090_16bit_alpha.png",
-        "D:\\All_moon_128\\outputFile\\lroc_color_poles_60s_30s_000_090_.tif",
-        "D:\Moon\ldem_256_60s_30s_000_090_16bit_alpha.png",
-        "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_090_180_.tif",
-        "D:\\Moon\\ldem_256_30s_00s_090_180_16bit_alpha.png"
+        "D:\All_moon_128\outputFile\lroc_color_poles.tif",
+        "D:\All_moon_128\outputFile\ldem_128_float_small_small.png"
     ]:
         if os.path.exists(img_path):
             try:
@@ -18,63 +37,11 @@ def preload_image_resources():
         else:
             print(f"[Warn] 图片文件不存在: {img_path}")
 
-def add_great_circle_curve(lat1, lon1, lat2, lon2, R, distance1=0, distance2=0, num_points=32, name='GreatCirclePath'):
-    def latlon_to_xyz(lat, lon, r):
-        lat_rad = math.radians(lat)
-        lon_rad = math.radians(lon)
-        x = r * math.cos(lat_rad) * math.cos(lon_rad)
-        y = r * math.cos(lat_rad) * math.sin(lon_rad)
-        z = r * math.sin(lat_rad)
-        return mathutils.Vector((x, y, z))
-
-    def slerp(p0, p1, t):
-        omega = p0.angle(p1)
-        if omega == 0:
-            return p0
-        return (math.sin((1-t)*omega) * p0 + math.sin(t*omega) * p1) / math.sin(omega)
-
-    A = latlon_to_xyz(lat1, lon1, R)
-    B = latlon_to_xyz(lat2, lon2, R)
-    points = []
-    for i in range(num_points):
-        t = i / (num_points - 1)
-        distance = (1 - t) * distance1 + t * distance2
-        pt = slerp(A, B, t).normalized() * (R + distance)
-        points.append(pt)
-    curve_data = bpy.data.curves.new(name, type='CURVE')
-    curve_data.dimensions = '3D'
-    polyline = curve_data.splines.new('POLY')
-    polyline.points.add(len(points)-1)
-    for i, pt in enumerate(points):
-        polyline.points[i].co = (pt.x, pt.y, pt.z, 1)
-    curve_obj = bpy.data.objects.new(name, curve_data)
-    bpy.context.collection.objects.link(curve_obj)
-    return curve_obj
 
 def xyz_to_latlon(x, y, z):
     r = math.sqrt(x**2 + y**2 + z**2)
     lat = math.degrees(math.asin(z / r))
     lon = math.degrees(math.atan2(y, x))
-    return lat, lon
-
-def get_camera_latlon(camera, sphere_radius):
-    cam_pos = camera.location
-    # 相机主光轴方向（世界坐标系下）
-    dir = camera.matrix_world.to_quaternion() @ mathutils.Vector((0, 0, -1))
-    dir = dir.normalized()
-    # 求交点
-    # cam_pos + t*dir = 球面上一点，|p| = sphere_radius
-    # => |cam_pos + t*dir| = sphere_radius
-    # 解一元二次方程
-    a = dir.dot(dir)
-    b = 2 * cam_pos.dot(dir)
-    c = cam_pos.dot(cam_pos) - sphere_radius**2
-    delta = b**2 - 4*a*c
-    if delta < 0:
-        return None  # 没有交点
-    t = (-b - math.sqrt(delta)) / (2*a)  # 取较小的t（即相机前方最近的交点）
-    p = cam_pos + t * dir
-    lat, lon = xyz_to_latlon(p.x, p.y, p.z)
     return lat, lon
 
 def select_and_materialize_region(
@@ -207,7 +174,7 @@ def select_and_materialize_region(
         except Exception:
             pass
 
-    # UV归一化
+    # UV归一化 其实就是拉伸球面映射到整个贴图区域
     mesh = part_obj.data
     if mesh.uv_layers:
         uv_layer = mesh.uv_layers.active.data
@@ -225,78 +192,6 @@ def select_and_materialize_region(
         print("[Warn] 没有UV层, 无法操作")
     return part_obj
 
-def setup_camera(
-    sensor_width=11.26, 
-    focal_length=10.0, 
-    resolution_x=1024, 
-    resolution_y=1024, 
-    fps=24, 
-    clip_start=0.1, 
-    clip_end=100000,
-    camera_type='PERSP',
-    nurbs_path=None,
-    target=None,
-    end_time=240,
-    camera_location=(0, 0, 0),
-    camera_rotation=(0, 0, 0)
-):
-    """
-    创建并设置相机，添加路径跟随和追踪约束，并设置渲染参数。
-    参数：
-        sensor_width: 传感器宽度（mm）
-        focal_length: 焦距（mm）
-        resolution_x, resolution_y: 渲染分辨率
-        fps: 帧率
-        clip_start, clip_end: 裁剪面
-        camera_type: 'PERSP' 或 'ORTHO'
-        nurbs_path: 跟随的路径对象
-        target: 追踪目标对象
-        end_time: 路径动画结束帧
-        camera_location, camera_rotation: 相机初始位置和欧拉角
-    返回：
-        camera: 新建的相机对象
-    """
-    # 添加相机
-    bpy.ops.object.camera_add(location=camera_location, rotation=camera_rotation)
-    camera = bpy.context.active_object
-    bpy.context.scene.camera = camera
-    camera.data.sensor_width = sensor_width
-    camera.data.sensor_fit = 'AUTO'
-    camera.data.type = camera_type
-    camera.data.lens = focal_length
-    camera.data.clip_start = clip_start
-    camera.data.clip_end = clip_end
-
-    # 设置渲染输出属性
-    scene = bpy.context.scene
-    scene.render.resolution_x = resolution_x
-    scene.render.resolution_y = resolution_y
-    scene.render.resolution_percentage = 100
-    scene.render.pixel_aspect_x = 1.0
-    scene.render.pixel_aspect_y = 1.0
-    scene.render.fps = fps
-
-    # 路径跟随约束
-    if nurbs_path is not None:
-        constraint = camera.constraints.new(type='FOLLOW_PATH')
-        constraint.target = nurbs_path
-        constraint.use_fixed_location = True
-        constraint.offset_factor = 0.0
-        constraint.keyframe_insert(data_path="offset_factor", frame=1)
-        constraint.offset_factor = 1.0
-        constraint.keyframe_insert(data_path="offset_factor", frame=end_time)
-
-    # 追踪目标约束
-    if target is not None:
-        track_constraint = camera.constraints.new(type='TRACK_TO')
-        track_constraint.target = target
-        track_constraint.track_axis = 'TRACK_NEGATIVE_Z'
-        track_constraint.up_axis = 'UP_Y'
-
-    # 激活相机
-    bpy.context.view_layer.objects.active = camera
-
-    return camera
 
 def clean_scene(whiteList=None):
     """
@@ -322,3 +217,32 @@ def clean_scene(whiteList=None):
         if obj.name not in whiteList:
             obj.select_set(True)
     bpy.ops.object.delete()
+
+clean_scene()
+# 添加一个半径为17.35的UV球
+bpy.ops.mesh.primitive_uv_sphere_add(
+    radius=1738, 
+    location=(0, 0, 0), 
+    segments=360,      # 段数
+    ring_count=180     # 环数
+)
+#获得UV球体对象
+uv_sphere = bpy.context.active_object 
+mesh = uv_sphere.data
+preload_image_resources()
+img_list = list(preload_images.values())
+print("预加载图片数量:", len(img_list))
+
+uv_sphere_part1=select_and_materialize_region(uv_sphere, -90, 90, 0, 360, 
+                                              img_list[0].filepath, 
+                                              img_list[1].filepath, 
+                                              scale=100)
+
+
+# 设置场景的帧范围,准备拍摄渲染
+scene = bpy.context.scene
+scene.frame_set(1)
+scene.frame_start = 1
+scene.frame_end = end_time
+uv_sphere.hide_set(True)  # 在视图中隐藏球体
+uv_sphere.hide_render=True # 在渲染中隐藏球体

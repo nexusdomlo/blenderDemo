@@ -2,20 +2,20 @@ import os
 import subprocess
 
 # 原始影像范围
-src_lon_min, src_lon_max = 0, 90
-src_lat_min, src_lat_max = 0, 45
+src_lon_min, src_lon_max = 0, 360
+src_lat_min, src_lat_max = -90, 90
 
 # 配置参数
-tif_path = r"D:\Moon\ldem_512_00n_45n_000_090_float.tif"       # 输入TIF文件路径
-clip_path = r"D:\Moon\ldem_512_00n_45n_000_030_float.tif"      # 裁剪后TIF输出路径
+tif_path = r"D:\All_moon_128\outputFile\ldem_128_float_small_small.png"      # 输入TIF文件路径
+clip_path = r"D:\All_moon_128\outputFile\ldem_128_float_small_small.png"      # 裁剪后TIF输出路径
 os.makedirs(os.path.dirname(clip_path), exist_ok=True)
 
 # 裁剪区域（经纬度）
-lon_min, lon_max = 0, 30      # 经度范围
-lat_min, lat_max = 0, 45      # 纬度范围（南纬为负）
+lon_min, lon_max = 0, 360       # 经度范围
+lat_min, lat_max = -90, -75     # 纬度范围（南纬为负）
 
 # 分辨率（每度像素数）
-pix_per_deg = 512
+pix_per_deg = 128
 
 # 计算像素窗口
 xoff = int((lon_min - src_lon_min) * pix_per_deg)   # 起始列
