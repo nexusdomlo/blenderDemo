@@ -26,8 +26,8 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 preload_images = {}
 def preload_image_resources():
     for img_path in [
-        "D:\All_moon_128\outputFile\lroc_color_poles.tif",
-        "D:\All_moon_128\outputFile\ldem_128_float_small_small.png"
+        # "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif",
+        # "D:\\Moon\\ldem_75s_30m_16bit_alpha.png"
     ]:
         if os.path.exists(img_path):
             try:
@@ -50,6 +50,7 @@ def select_and_materialize_region(
     texture_path, normal_path, 
     group_name="Selected_Faces_Group",
     scale=1.0,
+    unwrap=False
 ):
     """
     提取指定经纬度范围的顶点组，并为其添加材质和节点连接
@@ -165,7 +166,7 @@ def select_and_materialize_region(
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
         #细分值，可根据需要调整
-        bpy.ops.mesh.subdivide(number_cuts=3)
+        # bpy.ops.mesh.subdivide(number_cuts=1)
         bpy.ops.object.mode_set(mode='OBJECT')
     except Exception as e:
         print("[Warn] 细分失败:", e)
@@ -190,6 +191,19 @@ def select_and_materialize_region(
             print("[Warn] UV 归一化失败:", e)
     else:
         print("[Warn] 没有UV层, 无法操作")
+    if(unwrap):
+        # === UV展开 ===
+        try:
+            bpy.context.view_layer.objects.active = part_obj
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.001)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            print("UV展开完成")
+        except Exception as e:
+            print("[Warn] UV展开失败:", e)
+
+    
     return part_obj
 
 
@@ -232,11 +246,18 @@ mesh = uv_sphere.data
 preload_image_resources()
 img_list = list(preload_images.values())
 print("预加载图片数量:", len(img_list))
-
-uv_sphere_part1=select_and_materialize_region(uv_sphere, -90, 90, 0, 360, 
-                                              img_list[0].filepath, 
-                                              img_list[1].filepath, 
-                                              scale=100)
+#对非立体投影的部分可以不进行UV展开
+# uv_sphere_part1=select_and_materialize_region(uv_sphere, -75, -60, 0, 90, 
+#                                               "", 
+#                                               img_list[0].filepath, 
+#                                               scale=100)
+#对极地立体投影的部分进行要进行一个UV展开
+uv_sphere_part2=select_and_materialize_region(uv_sphere, -90, -75, 0, 360, 
+                                              "", 
+                                              "",
+                                              scale=100,
+                                              unwrap=True
+                                              )
 
 
 # 设置场景的帧范围,准备拍摄渲染

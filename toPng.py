@@ -33,7 +33,7 @@ cmd = [
     alpha_path
 ]
 subprocess.run(cmd, check=True)
-output_png = r"D:\Moon\ldem_75s_30m_16bit_alpha.png"
+output_png = r"D:\Moon\ldem_512_75s_60s_000_090_16bit_alpha.png"
 # 转为带 alpha 的 PNG
 cmd = [
     "gdal_translate",
@@ -47,3 +47,4 @@ os.remove(bit16_path)
 os.remove(alpha_path)
 
 # gdal_translate -of PNG -ot UInt16 -scale -5.88241147995 4.8301405906677 0 65535 -a_nodata 0 "D:\Moon\ldem_256_30s_00s_000_090_float.tif" "D:\Moon\ldem_256_30s_00s_000_090_16bit.png"
+# "D:\Moon\ldem_512_75s_60s_000_090_float.tif"

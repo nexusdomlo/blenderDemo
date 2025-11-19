@@ -9,8 +9,8 @@ clip_dir = "D:\\Moon"    # 裁剪后TIF输出路径
 os.makedirs(tif_dir, exist_ok=True)
 os.makedirs(clip_dir, exist_ok=True)
 
-# 分辨率（每度像素数）
-pix_per_deg = 128
+# # 分辨率（每度像素数）
+# pix_per_deg = 128
 
 def convert_img_to_tif(lbl_path, tif_path):
     cmd = [

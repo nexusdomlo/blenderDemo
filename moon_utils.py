@@ -83,6 +83,7 @@ def select_and_materialize_region(
     texture_path, normal_path, 
     group_name="Selected_Faces_Group",
     scale=1.0,
+    unwrap=False
 ):
     """
     提取指定经纬度范围的顶点组，并为其添加材质和节点连接
@@ -198,7 +199,7 @@ def select_and_materialize_region(
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
         #细分值，可根据需要调整
-        bpy.ops.mesh.subdivide(number_cuts=3)
+        # bpy.ops.mesh.subdivide(number_cuts=1)
         bpy.ops.object.mode_set(mode='OBJECT')
     except Exception as e:
         print("[Warn] 细分失败:", e)
@@ -207,7 +208,7 @@ def select_and_materialize_region(
         except Exception:
             pass
 
-    # UV归一化
+    # UV归一化 其实就是拉伸球面映射到整个贴图区域
     mesh = part_obj.data
     if mesh.uv_layers:
         uv_layer = mesh.uv_layers.active.data
@@ -223,6 +224,19 @@ def select_and_materialize_region(
             print("[Warn] UV 归一化失败:", e)
     else:
         print("[Warn] 没有UV层, 无法操作")
+    if(unwrap):
+        # === UV展开 ===
+        try:
+            bpy.context.view_layer.objects.active = part_obj
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.001)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            print("UV展开完成")
+        except Exception as e:
+            print("[Warn] UV展开失败:", e)
+
+    
     return part_obj
 
 def setup_camera(
