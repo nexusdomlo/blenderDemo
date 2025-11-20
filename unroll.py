@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+import argparse
 
 def crop_sector_to_rect(image_path: str, start_angle: float, end_angle: float, output_path: str):
     """
@@ -171,10 +172,14 @@ def mask_circle_and_rotate(image_path: str, output_path: str, angle: float):
     print(f"已保存旋转后的结果图片到: {output_path}")
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="转换tif文件")
+    parser.add_argument("src", type=str, help="源TIF或者png文件路径")
+    parser.add_argument("--rotate", action="store_true", help="生成圆形外的遮罩，并旋转对应角度")
+    args = parser.parse_args()
     # --- 参数设置 ---
-    input_image_file = r"D:\Moon\ldem_75s_30m_16bit_alpha.png"
-    output_image_file = r"C:\Users\MushOtter\Pictures\ldem_cropped_rect1.png" # 修改输出文件名
-    visualization_file = r"C:\Users\MushOtter\Pictures\ldem_visualization.png"
+    input_image_file = args.src
+    output_image_file = r"C:\Users\MushOtter\Pictures\cropped_rect1.png" # 修改输出文件名
+    visualization_file = r"C:\Users\MushOtter\Pictures\mid_visualization.png"
 
     start_deg = 70
     end_deg = 90
@@ -191,24 +196,8 @@ if __name__ == '__main__':
         cv2.imwrite(input_image_file, sample_img)
 
     # --- 任务执行 ---
-    # 1. （可选）生成中间可视化结果
-    mask_circle_and_rotate(
-        r"C:\Users\MushOtter\Pictures\s.png",
-        r"C:\Users\MushOtter\Pictures\s_circle_masked_rotated.png",
-        20  # 顺时针旋转20度
-    )    
-    create_visualization(input_image_file, start_deg, end_deg, visualization_file)
-
-    # 2. 执行扇形剪切并生成长方形图片的操作
-    crop_sector_to_rect(input_image_file, start_deg, end_deg, output_image_file)
-
-
-    mask_circle(
-        r"D:\Moon\ldem_75s_30m_16bit_alpha.png",
-        r"C:\Users\MushOtter\Pictures\ldem_circle_masked.png"
-    )
-    mask_circle_and_rotate(
-        r"C:\Users\MushOtter\Pictures\ldem_circle_masked.png",
-        r"C:\Users\MushOtter\Pictures\ldem_circle_masked_rotated.png",
-        angle=20
-    )
+    if(not args.rotate):
+        crop_sector_to_rect(input_image_file, start_deg, end_deg, output_image_file)
+        create_visualization(input_image_file, start_deg, end_deg, visualization_file)
+    else:
+        mask_circle_and_rotate(input_image_file, r"C:\Users\MushOtter\Pictures\rotate.tif", angle=20)

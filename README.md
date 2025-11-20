@@ -39,3 +39,12 @@ python test.py
 # 自己在源码中填入需要使用的预加载图像，同时自己添加或者修改select_and_materialize_region(obj, lat_min, lat_max, lon_min, lon_max, texture_path, normal_path, group_name="Selected_Faces_Group",scale=1.0,visible_start_frame=81,visible_end_frame=160),让对应的区域加载你需要的图片,选择渲染的时间
 ```
 
+### 对极地立体投影进行一个旋转或者裁剪
+#### 对png文件进行一个裁剪
+```
+python unroll.py "C:\Users\MushOtter\Pictures\s.png"
+```
+#### 对tif文件进行一个裁剪
+```
+python unrolltest.py "C:\Users\MushOtter\Pictures\ldem_75s_30m_float.tif"
+```
