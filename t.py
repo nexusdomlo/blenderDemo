@@ -4,14 +4,14 @@ import mathutils # type: ignore
 import os
 
 # 经纬度范围
-lat_min, lat_max = -60, 0
-lon_min, lon_max = 0, 90
+lat_min, lat_max = -90, 0
+lon_min, lon_max = 0, 20
 sensor_width=5.632  # 传感器宽度，单位mm
 focal_length=4.877      # 焦距，单位mm
 height1=150 #起始高度
-height2=90 #到南纬30度时的高度
-height3=30 #到南纬60度时的高度
-height4=1  #到月球表面时的高度
+height2=1 #到南纬30度时的高度
+# height3=30 #到南纬60度时的高度
+# height4=1  #到月球表面时的高度
 # 计算视场角
 fov_rad = 2 * math.atan(sensor_width / (2 * focal_length))
 angel_offset1 =math.tan(fov_rad/2)*height1*360/(2*math.pi*1740) # 100km对应的角度偏移
@@ -26,8 +26,10 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 preload_images = {}
 def preload_image_resources():
     for img_path in [
-        "C:\\Users\\MushOtter\\Pictures\\ldem_cropped_rect1.png"
-        # "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif",
+        "D:\Moon\ldem_256_30s_0s_0_20.tif",
+        "D:\Moon\ldem_256_60s_30s_0_20.tif",
+        "D:\Moon\ldem_512_75s_60s_000_020.tif",
+        "D:\Moon\polar\ldem_polar_75s_30m_000_020.tif"
         # "D:\\Moon\\ldem_75s_30m_16bit_alpha.png"
     ]:
         if os.path.exists(img_path):
@@ -45,12 +47,120 @@ def xyz_to_latlon(x, y, z):
     lon = math.degrees(math.atan2(y, x))
     return lat, lon
 
+def add_great_circle_curve(lat1, lon1, lat2, lon2, R, distance1=0, distance2=0, num_points=64, name='GreatCirclePath'):
+    def latlon_to_xyz(lat, lon, r):
+        lat_rad = math.radians(lat)
+        lon_rad = math.radians(lon)
+        x = r * math.cos(lat_rad) * math.cos(lon_rad)
+        y = r * math.cos(lat_rad) * math.sin(lon_rad)
+        z = r * math.sin(lat_rad)
+        return mathutils.Vector((x, y, z))
+
+    def slerp(p0, p1, t):
+        omega = p0.angle(p1)
+        if omega == 0:
+            return p0
+        return (math.sin((1-t)*omega) * p0 + math.sin(t*omega) * p1) / math.sin(omega)
+
+    A = latlon_to_xyz(lat1, lon1, R)
+    B = latlon_to_xyz(lat2, lon2, R)
+    points = []
+    for i in range(num_points):
+        t = i / (num_points - 1)
+        distance = (1 - t) * distance1 + t * distance2
+        pt = slerp(A, B, t).normalized() * (R + distance)
+        points.append(pt)
+
+    curve_data = bpy.data.curves.new(name, type='CURVE')
+    curve_data.dimensions = '3D'
+    polyline = curve_data.splines.new('POLY')
+    polyline.points.add(len(points)-1)
+    for i, pt in enumerate(points):
+        polyline.points[i].co = (pt.x, pt.y, pt.z, 1)
+    curve_obj = bpy.data.objects.new(name, curve_data)
+    bpy.context.collection.objects.link(curve_obj)
+    return curve_obj
+
+def setup_camera(
+    sensor_width=11.26, 
+    focal_length=10.0, 
+    resolution_x=1024, 
+    resolution_y=1024, 
+    fps=24, 
+    clip_start=0.1, 
+    clip_end=100000,
+    camera_type='PERSP',
+    nurbs_path=None,
+    target=None,
+    end_time=240,
+    camera_location=(0, 0, 0),
+    camera_rotation=(0, 0, 0)
+):
+    """
+    创建并设置相机，添加路径跟随和追踪约束，并设置渲染参数。
+    参数：
+        sensor_width: 传感器宽度（mm）
+        focal_length: 焦距（mm）
+        resolution_x, resolution_y: 渲染分辨率
+        fps: 帧率
+        clip_start, clip_end: 裁剪面
+        camera_type: 'PERSP' 或 'ORTHO'
+        nurbs_path: 跟随的路径对象
+        target: 追踪目标对象
+        end_time: 路径动画结束帧
+        camera_location, camera_rotation: 相机初始位置和欧拉角
+    返回：
+        camera: 新建的相机对象
+    """
+    # 添加相机
+    bpy.ops.object.camera_add(location=camera_location, rotation=camera_rotation)
+    camera = bpy.context.active_object
+    bpy.context.scene.camera = camera
+    camera.data.sensor_width = sensor_width
+    camera.data.sensor_fit = 'AUTO'
+    camera.data.type = camera_type
+    camera.data.lens = focal_length
+    camera.data.clip_start = clip_start
+    camera.data.clip_end = clip_end
+
+    # 设置渲染输出属性
+    scene = bpy.context.scene
+    scene.render.resolution_x = resolution_x
+    scene.render.resolution_y = resolution_y
+    scene.render.resolution_percentage = 100
+    scene.render.pixel_aspect_x = 1.0
+    scene.render.pixel_aspect_y = 1.0
+    scene.render.fps = fps
+
+    # 路径跟随约束
+    if nurbs_path is not None:
+        constraint = camera.constraints.new(type='FOLLOW_PATH')
+        constraint.target = nurbs_path
+        constraint.use_fixed_location = True
+        constraint.offset_factor = 0.0
+        constraint.keyframe_insert(data_path="offset_factor", frame=1)
+        constraint.offset_factor = 1.0
+        constraint.keyframe_insert(data_path="offset_factor", frame=end_time)
+
+    # 追踪目标约束
+    if target is not None:
+        track_constraint = camera.constraints.new(type='TRACK_TO')
+        track_constraint.target = target
+        track_constraint.track_axis = 'TRACK_NEGATIVE_Z'
+        track_constraint.up_axis = 'UP_Y'
+
+    # 激活相机
+    bpy.context.view_layer.objects.active = camera
+
+    return camera
+
 def select_and_materialize_region(
     obj, 
     lat_min, lat_max, lon_min, lon_max, 
     texture_path, normal_path, 
     group_name="Selected_Faces_Group",
     scale=1.0,
+    unwrap=False
 ):
     """
     提取指定经纬度范围的顶点组，并为其添加材质和节点连接
@@ -126,15 +236,17 @@ def select_and_materialize_region(
 
     if normal_path in preload_images:
         disp_image.image = preload_images[normal_path]
+        disp_image.image.colorspace_settings.name = 'Non-Color'
     elif os.path.exists(normal_path):
         try:
             disp_image.image = bpy.data.images.load(normal_path)
         except Exception as e:
             print("[Warn] 加载置换贴图失败:", e)
-    # disp_image.image.colorspace_settings.name = 'Non-Color'
+    
     # 节点连接
     try:
-        links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
+        if(texture_path!=""):
+            links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
         links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
         displace = nodes.new(type='ShaderNodeDisplacement')
         displace.location = (200, -100)
@@ -191,17 +303,20 @@ def select_and_materialize_region(
             print("[Warn] UV 归一化失败:", e)
     else:
         print("[Warn] 没有UV层, 无法操作")
-    # === UV展开 ===
-    try:
-        bpy.context.view_layer.objects.active = part_obj
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.001)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        print("UV展开完成")
-    except Exception as e:
-        print("[Warn] UV展开失败:", e)
+    if(unwrap):
+        # === UV展开 ===
+        try:
+            bpy.context.view_layer.objects.active = part_obj
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            # bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.001)
+            bpy.ops.uv.unwrap(method='ANGLE_BASED', fill_holes=True, correct_aspect=True, use_subsurf_data=False, margin=0.001, no_flip=False, iterations=10, use_weights=False, weight_group="uv_importance", weight_factor=1)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            print("UV展开完成")
+        except Exception as e:
+            print("[Warn] UV展开失败:", e)
 
+    
     return part_obj
 
 
@@ -244,14 +359,80 @@ mesh = uv_sphere.data
 preload_image_resources()
 img_list = list(preload_images.values())
 print("预加载图片数量:", len(img_list))
-# uv_sphere_part1=select_and_materialize_region(uv_sphere, -75, -60, 0, 90, 
-#                                               "", 
-#                                               img_list[0].filepath, 
-#                                               scale=100)
-uv_sphere_part2=select_and_materialize_region(uv_sphere, -90, -75, 0, 20, 
+#对非立体投影的部分可以不进行UV展开
+uv_sphere_part1=select_and_materialize_region(uv_sphere, -30, 0, 0, 20, 
                                               "", 
-                                              img_list[0].filepath,
-                                              scale=100)
+                                              img_list[0].filepath, 
+                                              scale=1,
+                                              unwrap=False
+                                              )
+uv_sphere_part2=select_and_materialize_region(uv_sphere, -60, -30, 0, 20, 
+                                              "", 
+                                              img_list[1].filepath, 
+                                              scale=1,
+                                              unwrap=False
+                                              )
+uv_sphere_part3=select_and_materialize_region(uv_sphere, -75, -60, 0, 20,
+                                              "", 
+                                              img_list[2].filepath, 
+                                              scale=1,
+                                              unwrap=False
+                                              )
+#对极地立体投影的部分进行要进行一个UV展开
+uv_sphere_part4=select_and_materialize_region(uv_sphere, -90, -75, 0, 20, 
+                                              "", 
+                                              img_list[3].filepath, 
+                                              scale=1,
+                                              unwrap=True
+                                              )
+
+#  生成路径
+nurbs_path = add_great_circle_curve(path_lat_max, 10, path_lat_min, 10,  1738, height1,height2) # 2.5
+nurbs_path.data.use_path = True
+nurbs_path.data.path_duration = end_time  # 24秒，1440帧
+nurbs_path.data.keyframe_insert(data_path="eval_time", frame=1)
+nurbs_path.data.keyframe_insert(data_path="eval_time", frame=end_time) 
+
+# 渲染属性的设置
+bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
+bpy.context.scene.render.compositor_device = 'GPU'
+bpy.context.scene.render.compositor_denoise_device = 'GPU'
+bpy.context.scene.render.compositor_denoise_preview_quality = 'FAST'
+bpy.context.scene.render.compositor_denoise_final_quality = 'HIGH'
+
+#设计相机的部分
+# 1.添加空物体作为相机的观测目标
+bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0,0,0))
+target = bpy.context.active_object
+target.name = "CameraTarget"
+
+camera = setup_camera(
+    sensor_width=sensor_width,
+    focal_length=focal_length,
+    resolution_x=1024,
+    resolution_y=1024,
+    fps=24,
+    clip_start=0.1,
+    clip_end=100000,
+    camera_type='PERSP',
+    nurbs_path=nurbs_path,
+    target=target,
+    end_time=end_time,
+    camera_location=(0, 0, 0),
+    camera_rotation=(0, 0, 0)
+)
+
+# 添加太阳光
+# 添加日光（太阳光源）
+bpy.ops.object.light_add(type='SUN', location=(0, 0, 0))
+sun = bpy.context.active_object
+sun.data.energy = 1         # 设置强度
+sun.data.angle = 0.526 * math.pi / 180  # 设置角度（度转弧度）
+sun.data.color = (1, 1, 1)    # 设置颜色为白色
+sun.data.use_shadow = True    # 开启阴影
+#修改太陽光方向
+sun.rotation_euler = (math.radians(0), math.radians(90), math.radians(10))
+
 
 
 # 设置场景的帧范围,准备拍摄渲染
@@ -261,3 +442,7 @@ scene.frame_start = 1
 scene.frame_end = end_time
 uv_sphere.hide_set(True)  # 在视图中隐藏球体
 uv_sphere.hide_render=True # 在渲染中隐藏球体
+
+
+
+# bpy.ops.uv.unwrap(method='ANGLE_BASED', fill_holes=True, correct_aspect=True, use_subsurf_data=False, margin=0.001, no_flip=False, iterations=10, use_weights=False, weight_group="uv_importance", weight_factor=1)

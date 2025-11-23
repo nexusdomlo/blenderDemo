@@ -1,33 +1,24 @@
 import os
 import subprocess
+import argparse
 
-# 原始影像范围
-src_lon_min, src_lon_max = 0, 360
-src_lat_min, src_lat_max = -90, 90
+# # 原始影像范围
+# src_lon_min, src_lon_max = 0, 90
+# src_lat_min, src_lat_max = -75, -60
 
-# 配置参数
-tif_path = r"D:\All_moon_128\outputFile\ldem_128_float_small_small.png"      # 输入TIF文件路径
-clip_path = r"D:\All_moon_128\outputFile\ldem_128_float_small_small.png"      # 裁剪后TIF输出路径
-os.makedirs(os.path.dirname(clip_path), exist_ok=True)
+# # 配置参数
+# tif_path = r"D:\Moon\ldem_512_75s_60s_000_090_float.tif"      # 输入TIF文件路径
+# clip_path = r"D:\Moon\outputFile\ldem_512_75s_60s_000_030_float.tif"      # 裁剪后TIF输出路径
 
-# 裁剪区域（经纬度）
-lon_min, lon_max = 0, 360       # 经度范围
-lat_min, lat_max = -90, -75     # 纬度范围（南纬为负）
 
-# 分辨率（每度像素数）
-pix_per_deg = 128
+# # 裁剪区域（经纬度）
+# lon_min, lon_max = 0, 30       # 经度范围
+# lat_min, lat_max = -75, -60     # 纬度范围（南纬为负）
 
-# 计算像素窗口
-xoff = int((lon_min - src_lon_min) * pix_per_deg)   # 起始列
-yoff = int((src_lat_max - lat_max) * pix_per_deg)   # 起始行（纬度0在顶部，-30在下方）
-xsize = int((lon_max - lon_min) * pix_per_deg)
-ysize = int(abs(lat_max - lat_min) * pix_per_deg)
+# # 分辨率（每度像素数）
+# pix_per_deg = 512
 
-# xoff表示横轴偏移量
-# yoff表示纵轴偏移量，但是纵轴正方向向下
-# xsize表示裁剪宽度
-# ysize表示裁剪高度
-# 使用srcwin这个参数来裁剪影像，可以直接使用经纬度值
+
 def clip_tif_by_pixel(tif_path, out_path, xoff, yoff, xsize, ysize):
     cmd = [
         "gdal_translate",
@@ -37,6 +28,36 @@ def clip_tif_by_pixel(tif_path, out_path, xoff, yoff, xsize, ysize):
     subprocess.run(cmd, check=True)
 
 if __name__ == "__main__":
-    print(f"裁剪: {tif_path}")
+    parser = argparse.ArgumentParser(description="转换tif文件")
+    parser.add_argument("src", type=str, help="源TIF文件路径")
+    parser.add_argument("original_size", type=int, nargs=4, help="裁剪窗口参数:src_lon_min, src_lon_max, src_lat_min, src_lat_max")
+    parser.add_argument("clip_size", type=int, nargs=4, help="裁剪区域参数:lon_min, lon_max, lat_min, lat_max")
+    parser.add_argument("resolution", type=int, help="每度像素数")
+    args = parser.parse_args()
+    print(f"裁剪: {args.src}")
+    danwei1='n'
+    danwei2='n'
+    if(args.clip_size[2]<0):
+        danwei1='s'
+    if(args.clip_size[3]<0 or danwei1=='s'):
+        danwei2='s'
+    
+    clip_path = f"D:\\Moon\\outputFile\\ldem_{args.resolution}_{str(-args.clip_size[2]).zfill(2)}{danwei1}_{str(-args.clip_size[3]).zfill(2)}{danwei2}_{str(args.clip_size[0]).zfill(3)}_{str(args.clip_size[1]).zfill(3)}.tif"
+    os.makedirs(os.path.dirname(clip_path), exist_ok=True)
+    print(f"结果文件名: {clip_path}")
+    # 计算像素窗口
+    xoff = int((args.clip_size[0] - args.original_size[0]) * args.resolution)   # 起始列
+    yoff = int((args.original_size[3] - args.clip_size[3]) * args.resolution)   # 起始行（纬度0在顶部，-30在下方）
+    xsize = int((args.clip_size[1] - args.clip_size[0]) * args.resolution)
+    ysize = int(abs(args.clip_size[3] - args.clip_size[2]) * args.resolution)
+    #     xoff = int((lon_min - src_lon_min) * pix_per_deg)   # 起始列
+    # yoff = int((src_lat_max - lat_max) * pix_per_deg)   # 起始行（纬度0在顶部，-30在下方）
+    # xsize = int((lon_max - lon_min) * pix_per_deg)
+    # ysize = int(abs(lat_max - lat_min) * pix_per_deg)
+    # xoff表示横轴偏移量
+    # yoff表示纵轴偏移量，但是纵轴正方向向下
+    # xsize表示裁剪宽度
+    # ysize表示裁剪高度
+    # 使用srcwin这个参数来裁剪影像，可以直接使用经纬度值
     print(f"xoff={xoff}, yoff={yoff}, xsize={xsize}, ysize={ysize}")
-    clip_tif_by_pixel(tif_path, clip_path, xoff, yoff, xsize, ysize)
+    clip_tif_by_pixel(args.src, clip_path, xoff, yoff, xsize, ysize)

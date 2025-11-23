@@ -26,7 +26,8 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 preload_images = {}
 def preload_image_resources():
     for img_path in [
-        # "D:\\Moon\\ldem_512_75s_60s_000_090_float.tif",
+        "D:\\Moon\\ldem_512_75s_60s_000_090_16bit_alpha.png",
+        "D:\\Moon\\ldem_75s_120m_float.tif"
         # "D:\\Moon\\ldem_75s_30m_16bit_alpha.png"
     ]:
         if os.path.exists(img_path):
@@ -131,10 +132,11 @@ def select_and_materialize_region(
             disp_image.image = bpy.data.images.load(normal_path)
         except Exception as e:
             print("[Warn] 加载置换贴图失败:", e)
-    # disp_image.image.colorspace_settings.name = 'Non-Color'
+    disp_image.image.colorspace_settings.name = 'Non-Color'
     # 节点连接
     try:
-        links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
+        if(texture_path!=""):
+            links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
         links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
         displace = nodes.new(type='ShaderNodeDisplacement')
         displace.location = (200, -100)
@@ -197,7 +199,8 @@ def select_and_materialize_region(
             bpy.context.view_layer.objects.active = part_obj
             bpy.ops.object.mode_set(mode='EDIT')
             bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.001)
+            # bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.001)
+            bpy.ops.uv.unwrap(method='ANGLE_BASED', fill_holes=True, correct_aspect=True, use_subsurf_data=False, margin=0.001, no_flip=False, iterations=10, use_weights=False, weight_group="uv_importance", weight_factor=1)
             bpy.ops.object.mode_set(mode='OBJECT')
             print("UV展开完成")
         except Exception as e:
@@ -247,15 +250,17 @@ preload_image_resources()
 img_list = list(preload_images.values())
 print("预加载图片数量:", len(img_list))
 #对非立体投影的部分可以不进行UV展开
-# uv_sphere_part1=select_and_materialize_region(uv_sphere, -75, -60, 0, 90, 
-#                                               "", 
-#                                               img_list[0].filepath, 
-#                                               scale=100)
+uv_sphere_part1=select_and_materialize_region(uv_sphere, -75, -60, 0, 90, 
+                                              "", 
+                                              img_list[0].filepath, 
+                                              scale=1,
+                                              unwrap=False
+                                              )
 #对极地立体投影的部分进行要进行一个UV展开
 uv_sphere_part2=select_and_materialize_region(uv_sphere, -90, -75, 0, 360, 
                                               "", 
-                                              "",
-                                              scale=100,
+                                              img_list[1].filepath,
+                                              scale=1,
                                               unwrap=True
                                               )
 
@@ -267,3 +272,7 @@ scene.frame_start = 1
 scene.frame_end = end_time
 uv_sphere.hide_set(True)  # 在视图中隐藏球体
 uv_sphere.hide_render=True # 在渲染中隐藏球体
+
+
+
+# bpy.ops.uv.unwrap(method='ANGLE_BASED', fill_holes=True, correct_aspect=True, use_subsurf_data=False, margin=0.001, no_flip=False, iterations=10, use_weights=False, weight_group="uv_importance", weight_factor=1)

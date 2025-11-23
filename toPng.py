@@ -4,6 +4,7 @@ from osgeo import gdal
 import argparse
 parser = argparse.ArgumentParser(description="转换tif文件")
 parser.add_argument("src", type=str, help="源TIF文件路径")
+parser.add_argument("dst", type=str, help="输出PNG文件路径")
 args = parser.parse_args()
 src_path = args.src
 ds = gdal.Open(src_path)
@@ -33,7 +34,7 @@ cmd = [
     alpha_path
 ]
 subprocess.run(cmd, check=True)
-output_png = r"D:\Moon\ldem_512_75s_60s_000_090_16bit_alpha.png"
+output_png = args.dst
 # 转为带 alpha 的 PNG
 cmd = [
     "gdal_translate",
