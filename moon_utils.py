@@ -312,6 +312,38 @@ def setup_camera(
 
     return camera
 
+def add_sun_light(
+    location=(0, 0, 0),
+    energy=1,
+    angle_deg=0.526,
+    color=(1, 1, 1),
+    rotation_euler=(30, -90, 0)
+):
+    """
+    添加太阳光（日光源）并设置参数
+    :param location: 太阳光位置
+    :param energy: 光照强度
+    :param angle_deg: 光源角度（度）
+    :param color: 光源颜色 (R,G,B)
+    :param rotation_euler: 欧拉角（度），如(30, -90, 0)
+    :return: sun对象
+    """
+    bpy.ops.object.light_add(type='SUN', location=location)
+    sun = bpy.context.active_object
+    sun.data.energy = energy
+    sun.data.angle = math.radians(angle_deg)
+    sun.data.color = color
+    sun.data.use_shadow = True
+    sun.rotation_euler = tuple(math.radians(a) for a in rotation_euler)
+
+    # 为太阳光添加 Track To 约束
+    # sun_track_constraint = sun.constraints.new(type='TRACK_TO')
+    # sun_track_constraint.target = camera           # 目标对象
+    # sun_track_constraint.track_axis = 'TRACK_NEGATIVE_Z'  # 追踪轴 -Z
+    # sun_track_constraint.up_axis = 'UP_Y'          # 向上轴 Y
+
+    return sun
+
 def clean_scene(whiteList=None):
     """
     清空场景，保留白名单中的对象

@@ -29,7 +29,10 @@ def preload_image_resources():
         "D:\Moon\ldem_256_30s_0s_0_20.tif",
         "D:\Moon\ldem_256_60s_30s_0_20.tif",
         "D:\Moon\ldem_512_75s_60s_000_020.tif",
-        "D:\Moon\polar\ldem_polar_75s_30m_000_020.tif"
+        "D:\Moon\polar\ldem_polar_75s_30m_000_020.tif",
+        "D:\All_moon_128\outputFile\lroc_color_poles_30s_0s_0_20_.tif",
+        "D:\All_moon_128\outputFile\lroc_color_poles_60s_30s_0_20_.tif",
+        "D:\All_moon_128\outputFile\lroc_color_poles_75s_60s_0_20_.tif"
         # "D:\\Moon\\ldem_75s_30m_16bit_alpha.png"
     ]:
         if os.path.exists(img_path):
@@ -361,19 +364,19 @@ img_list = list(preload_images.values())
 print("预加载图片数量:", len(img_list))
 #对非立体投影的部分可以不进行UV展开
 uv_sphere_part1=select_and_materialize_region(uv_sphere, -30, 0, 0, 20, 
-                                              "", 
+                                              img_list[4].filepath, 
                                               img_list[0].filepath, 
                                               scale=1,
                                               unwrap=False
                                               )
 uv_sphere_part2=select_and_materialize_region(uv_sphere, -60, -30, 0, 20, 
-                                              "", 
+                                              img_list[5].filepath, 
                                               img_list[1].filepath, 
                                               scale=1,
                                               unwrap=False
                                               )
 uv_sphere_part3=select_and_materialize_region(uv_sphere, -75, -60, 0, 20,
-                                              "", 
+                                              img_list[6].filepath, 
                                               img_list[2].filepath, 
                                               scale=1,
                                               unwrap=False

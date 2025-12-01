@@ -85,7 +85,7 @@ def crop_sector_to_rect(image_path: str, start_angle: float, end_angle: float, o
     h_final, w_final = final_region.shape[:2]
     output_image[0:h_final, 0:w_final] = final_region
 
-    # 9. 保存结果图片前，对角线翻转
+    # 9. 保存结果图片前，对角线翻转 ，如果你在blender中选择立方体投影，那么这三步可以不要
     output_image = cv2.transpose(output_image)
     output_image = cv2.flip(output_image, 1)
     output_image = cv2.flip(output_image, 0)
