@@ -4,7 +4,7 @@
 
 ### 切割ldem或者lroc的tif
 ```
-python cut.py src_path src_lon_min src_lon_max src_lat_min src_lat_max lon_min, lon_max, lat_min, lat_max 每度像素数(src的精度)
+python cut.py src_path src_lon_min src_lon_max src_lat_min src_lat_max lon_min lon_max lat_min lat_max 每度像素数(src的精度)
 python cut_lroc.py # 在源码中修改lroc tif原图的范围值，以及你需要裁剪出来的值
 ```
 
@@ -25,12 +25,12 @@ python all_moon.py
 非极区用png 极区用tif
 ### 转换IMG文件
 ```
-python gdalGetPicture.py
+python img2tif.py
 ```
 
 ### 将32为浮点数tif图变成16位无符号的png图
 ```
-python toPng.py src_path dst_path
+python tif2png.py src_path dst_path
 ```
 
 ### test文件，真的就是test而已，没啥用，让你尝试你的代码是否可行，然后可行在自己生成新的文件(现在暂时就是用来测试getPartMoon的间断生成功能)
@@ -48,3 +48,6 @@ python unroll.py "C:\Users\MushOtter\Pictures\s.png"
 ```
 python unrolltest.py "C:\Users\MushOtter\Pictures\ldem_75s_30m_float.tif"
 ```
+
+#### 八叉树实验
+python eight.py

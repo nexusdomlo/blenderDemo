@@ -36,7 +36,6 @@ def preload_image_resources():
         else:
             print(f"[Warn] 图片文件不存在: {img_path}")
 
-
 def xyz_to_latlon(x, y, z):
     r = math.sqrt(x**2 + y**2 + z**2)
     lat = math.degrees(math.asin(z / r))
@@ -348,7 +347,6 @@ def select_and_materialize_region(
             print("[Warn] UV展开失败:", e)
     return part_obj
 
-
 def clean_scene(whiteList=None):
     """
     清空场景，保留白名单中的对象
@@ -399,6 +397,7 @@ uv_sphere_part1=select_and_materialize_region(uv_sphere, -60, -30, 0, 20,
                                               subdiv_levels=2
                                               )
 
+# 中间删除了一系列的添加轨迹，设置相机等操作
 # 设置场景的帧范围,准备拍摄渲染
 scene = bpy.context.scene
 scene.frame_set(1)
@@ -408,5 +407,3 @@ uv_sphere.hide_set(True)  # 在视图中隐藏球体
 uv_sphere.hide_render=True # 在渲染中隐藏球体
 
 
-
-# bpy.ops.uv.unwrap(method='ANGLE_BASED', fill_holes=True, correct_aspect=True, use_subsurf_data=False, margin=0.001, no_flip=False, iterations=10, use_weights=False, weight_group="uv_importance", weight_factor=1)
