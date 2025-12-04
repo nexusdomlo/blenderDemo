@@ -1,6 +1,6 @@
-import bpy
+import bpy  # type: ignore
 import math
-from mathutils import Vector
+from mathutils import Vector # type: ignore
 
 def place_object_on_surface(bennu_obj, lon_deg, lat_deg, new_obj_name="Marker", new_obj_size=0.01):
     """

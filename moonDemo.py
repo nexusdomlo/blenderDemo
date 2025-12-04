@@ -26,14 +26,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 preload_images = {}
 def preload_image_resources():
     for img_path in [
-        "D:\Moon\ldem_256_30s_0s_0_20.tif",
-        "D:\Moon\ldem_256_60s_30s_0_20.tif",
-        "D:\Moon\ldem_512_75s_60s_000_020.tif",
-        "D:\Moon\polar\ldem_polar_75s_30m_000_020.tif",
-        "D:\All_moon_128\outputFile\lroc_color_poles_30s_0s_0_20_.tif",
-        "D:\All_moon_128\outputFile\lroc_color_poles_60s_30s_0_20_.tif",
-        "D:\All_moon_128\outputFile\lroc_color_poles_75s_60s_0_20_.tif"
-        # "D:\\Moon\\ldem_75s_30m_16bit_alpha.png"
+        "D:\\Moon\\ldem_256_60s_30s_0_20.tif"
     ]:
         if os.path.exists(img_path):
             try:
@@ -163,7 +156,9 @@ def select_and_materialize_region(
     texture_path, normal_path, 
     group_name="Selected_Faces_Group",
     scale=1.0,
-    unwrap=False
+    unwrap=False,
+    displacement_method='MODIFIER',
+    subdiv_levels=2
 ):
     """
     提取指定经纬度范围的顶点组，并为其添加材质和节点连接
@@ -183,7 +178,6 @@ def select_and_materialize_region(
     bpy.ops.object.mode_set(mode='OBJECT')
 
     selected_verts = set()
-    selected_polys = []
 
     # 选中目标区域的面，并收集顶点
     for poly in mesh.polygons:
@@ -236,40 +230,75 @@ def select_and_materialize_region(
             tex_image.image = bpy.data.images.load(texture_path)
         except Exception as e:
             print("[Warn] 加载颜色贴图失败:", e)
-
+    
     if normal_path in preload_images:
         disp_image.image = preload_images[normal_path]
-        disp_image.image.colorspace_settings.name = 'Non-Color'
     elif os.path.exists(normal_path):
         try:
             disp_image.image = bpy.data.images.load(normal_path)
         except Exception as e:
             print("[Warn] 加载置换贴图失败:", e)
-    
+    disp_image.image.colorspace_settings.name = 'Non-Color'
     # 节点连接
+    # 基础节点连接 (颜色)
     try:
-        if(texture_path!=""):
+        if tex_image.image:
             links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
         links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-        displace = nodes.new(type='ShaderNodeDisplacement')
-        displace.location = (200, -100)
-        displace.inputs['Midlevel'].default_value = 0.5
-        if(normal_path.lower().endswith('.tif')):
-            displace.inputs['Scale'].default_value = scale
-        else:
-            displace.inputs['Scale'].default_value = 6
-        links.new(disp_image.outputs['Color'], displace.inputs['Height'])
-        links.new(displace.outputs['Displacement'], output.inputs['Displacement'])
     except Exception as e:
-        print("[Warn] 材质节点连接失败:", e)
-        nodes.clear()
-        output = nodes.new(type='ShaderNodeOutputMaterial')
-        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-        links = mat.node_tree.links
-        links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+        print(f"[Warn] 基础材质节点连接失败: {e}")
+
+    # 如果使用着色器节点方法进行置换
+    if displacement_method == 'NODES' and disp_image.image:
+        try:
+            displace = nodes.new(type='ShaderNodeDisplacement')
+            displace.location = (200, -100)
+            displace.inputs['Midlevel'].default_value = 0.5
+            if normal_path.lower().endswith('.tif'):
+                displace.inputs['Scale'].default_value = scale
+            else:
+                displace.inputs['Scale'].default_value = 6
+            links.new(disp_image.outputs['Color'], displace.inputs['Height'])
+            links.new(displace.outputs['Displacement'], output.inputs['Displacement'])
+        except Exception as e:
+            print(f"[Warn] 置换节点连接失败: {e}")
 
     part_obj.data.materials.clear()
     part_obj.data.materials.append(mat)
+
+    # 如果使用修改器方法进行置换
+    if displacement_method == 'MODIFIER':
+        bpy.context.view_layer.objects.active = part_obj
+        
+        # 1. 添加表面细分修改器
+        subdiv_mod = part_obj.modifiers.new(name="Subdivision", type='SUBSURF')
+        subdiv_mod.levels = subdiv_levels
+        subdiv_mod.render_levels = subdiv_levels
+
+        # 2. 如果置换贴图已加载，则创建纹理并添加置换修改器
+        if disp_image.image:
+            # 创建一个Blender纹理数据块
+            normal_name = f"DispTex_{part_obj.name}"
+            if normal_name in bpy.data.textures:
+                disp_texture = bpy.data.textures[normal_name]
+            else:
+                disp_texture = bpy.data.textures.new(normal_name, type='IMAGE')
+            
+            # 将图像关联到纹理
+            disp_texture.image = disp_image.image
+
+            # 3. 添加置换修改器
+            disp_mod = part_obj.modifiers.new(name="Displace", type='DISPLACE')
+            # 将纹理赋给修改器
+            disp_mod.texture = disp_texture
+            disp_mod.texture_coords = 'UV'
+            disp_mod.mid_level = 0.5
+            if normal_path.lower().endswith('.tif'):
+                disp_mod.strength = scale
+            else:
+                disp_mod.strength = 6
+        else:
+            print("[Warn] 未加载置换图像，跳过置换修改器。")
 
      # === 细分和UV归一化 ===
     bpy.ops.object.select_all(action='DESELECT')
@@ -281,7 +310,7 @@ def select_and_materialize_region(
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
         #细分值，可根据需要调整
-        # bpy.ops.mesh.subdivide(number_cuts=1)
+        bpy.ops.mesh.subdivide(number_cuts=10)
         bpy.ops.object.mode_set(mode='OBJECT')
     except Exception as e:
         print("[Warn] 细分失败:", e)
@@ -312,14 +341,11 @@ def select_and_materialize_region(
             bpy.context.view_layer.objects.active = part_obj
             bpy.ops.object.mode_set(mode='EDIT')
             bpy.ops.mesh.select_all(action='SELECT')
-            # bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.001)
-            bpy.ops.uv.unwrap(method='ANGLE_BASED', fill_holes=True, correct_aspect=True, use_subsurf_data=False, margin=0.001, no_flip=False, iterations=10, use_weights=False, weight_group="uv_importance", weight_factor=1)
+            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=0.001)
             bpy.ops.object.mode_set(mode='OBJECT')
             print("UV展开完成")
         except Exception as e:
             print("[Warn] UV展开失败:", e)
-
-    
     return part_obj
 
 
@@ -361,82 +387,17 @@ uv_sphere = bpy.context.active_object
 mesh = uv_sphere.data
 preload_image_resources()
 img_list = list(preload_images.values())
+print(len(img_list))
 print("预加载图片数量:", len(img_list))
 #对非立体投影的部分可以不进行UV展开
-uv_sphere_part1=select_and_materialize_region(uv_sphere, -30, 0, 0, 20, 
-                                              img_list[4].filepath, 
+uv_sphere_part1=select_and_materialize_region(uv_sphere, -60, -30, 0, 20, 
+                                              "", 
                                               img_list[0].filepath, 
                                               scale=1,
-                                              unwrap=False
+                                              unwrap=False,
+                                              displacement_method='MODIFIER',
+                                              subdiv_levels=2
                                               )
-uv_sphere_part2=select_and_materialize_region(uv_sphere, -60, -30, 0, 20, 
-                                              img_list[5].filepath, 
-                                              img_list[1].filepath, 
-                                              scale=1,
-                                              unwrap=False
-                                              )
-uv_sphere_part3=select_and_materialize_region(uv_sphere, -75, -60, 0, 20,
-                                              img_list[6].filepath, 
-                                              img_list[2].filepath, 
-                                              scale=1,
-                                              unwrap=False
-                                              )
-#对极地立体投影的部分进行要进行一个UV展开
-uv_sphere_part4=select_and_materialize_region(uv_sphere, -90, -75, 0, 20, 
-                                              "", 
-                                              img_list[3].filepath, 
-                                              scale=1,
-                                              unwrap=True
-                                              )
-
-#  生成路径
-nurbs_path = add_great_circle_curve(path_lat_max, 10, path_lat_min, 10,  1738, height1,height2) # 2.5
-nurbs_path.data.use_path = True
-nurbs_path.data.path_duration = end_time  # 24秒，1440帧
-nurbs_path.data.keyframe_insert(data_path="eval_time", frame=1)
-nurbs_path.data.keyframe_insert(data_path="eval_time", frame=end_time) 
-
-# 渲染属性的设置
-bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
-bpy.context.scene.render.compositor_device = 'GPU'
-bpy.context.scene.render.compositor_denoise_device = 'GPU'
-bpy.context.scene.render.compositor_denoise_preview_quality = 'FAST'
-bpy.context.scene.render.compositor_denoise_final_quality = 'HIGH'
-
-#设计相机的部分
-# 1.添加空物体作为相机的观测目标
-bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0,0,0))
-target = bpy.context.active_object
-target.name = "CameraTarget"
-
-camera = setup_camera(
-    sensor_width=sensor_width,
-    focal_length=focal_length,
-    resolution_x=1024,
-    resolution_y=1024,
-    fps=24,
-    clip_start=0.1,
-    clip_end=100000,
-    camera_type='PERSP',
-    nurbs_path=nurbs_path,
-    target=target,
-    end_time=end_time,
-    camera_location=(0, 0, 0),
-    camera_rotation=(0, 0, 0)
-)
-
-# 添加太阳光
-# 添加日光（太阳光源）
-bpy.ops.object.light_add(type='SUN', location=(0, 0, 0))
-sun = bpy.context.active_object
-sun.data.energy = 1         # 设置强度
-sun.data.angle = 0.526 * math.pi / 180  # 设置角度（度转弧度）
-sun.data.color = (1, 1, 1)    # 设置颜色为白色
-sun.data.use_shadow = True    # 开启阴影
-#修改太陽光方向
-sun.rotation_euler = (math.radians(0), math.radians(90), math.radians(10))
-
-
 
 # 设置场景的帧范围,准备拍摄渲染
 scene = bpy.context.scene

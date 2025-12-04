@@ -3,10 +3,10 @@ import os
 
 # --- 配置 ---
 # 输入的 .dat 文件名 (确保和你的文件名一致)
-dat_filename = "C:\\Users\\MushOtter\\Downloads\\20190701_ola_scil2Aid04000_v002.dat"
+dat_filename = "D:\\Asteroid\\BENNU\\Bennu_Dat\\20190701_ola_scil2Aid04000_v002.dat"
 
 # 输出的文本文件名
-output_filename = 'bennu_point_cloud.xyz'
+output_filename = "D:\\Asteroid\\BENNU\\Bennu_Dat\\20190701_ola_scil2Aid04000_v002.xyz"
 
 # 根据 XML 文件定义的数据结构
 RECORD_LENGTH_BYTES = 186

@@ -1,6 +1,7 @@
 import math
 import mathutils # type: ignore
 import bpy # type: ignore
+import os
 def preload_image_resources():
     for img_path in [
         "D:\\All_moon_128\\outputFile\\lroc_color_poles_30s_00s_000_090_.tif",
@@ -83,7 +84,9 @@ def select_and_materialize_region(
     texture_path, normal_path, 
     group_name="Selected_Faces_Group",
     scale=1.0,
-    unwrap=False
+    unwrap=False,
+    displacement_method='MODIFIER',
+    subdiv_levels=2
 ):
     """
     提取指定经纬度范围的顶点组，并为其添加材质和节点连接
@@ -156,38 +159,70 @@ def select_and_materialize_region(
             tex_image.image = bpy.data.images.load(texture_path)
         except Exception as e:
             print("[Warn] 加载颜色贴图失败:", e)
-
-    if normal_path in preload_images:
-        disp_image.image = preload_images[normal_path]
-    elif os.path.exists(normal_path):
+    
+    if displacement_method == 'NODES':
+        if normal_path in preload_images:
+            disp_image.image = preload_images[normal_path]
+        elif os.path.exists(normal_path):
+            try:
+                disp_image.image = bpy.data.images.load(normal_path)
+            except Exception as e:
+                print("[Warn] 加载置换贴图失败:", e)
+        # disp_image.image.colorspace_settings.name = 'Non-Color'
+        # 节点连接
         try:
-            disp_image.image = bpy.data.images.load(normal_path)
+            links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
+            links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+            displace = nodes.new(type='ShaderNodeDisplacement')
+            displace.location = (200, -100)
+            displace.inputs['Midlevel'].default_value = 0.5
+            if(normal_path.lower().endswith('.tif')):
+                displace.inputs['Scale'].default_value = scale
+            else:
+                displace.inputs['Scale'].default_value = 6
+            links.new(disp_image.outputs['Color'], displace.inputs['Height'])
+            links.new(displace.outputs['Displacement'], output.inputs['Displacement'])
         except Exception as e:
-            print("[Warn] 加载置换贴图失败:", e)
-    # disp_image.image.colorspace_settings.name = 'Non-Color'
-    # 节点连接
-    try:
-        links.new(tex_image.outputs['Color'], bsdf.inputs['Base Color'])
-        links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
-        displace = nodes.new(type='ShaderNodeDisplacement')
-        displace.location = (200, -100)
-        displace.inputs['Midlevel'].default_value = 0.5
-        if(normal_path.lower().endswith('.tif')):
-            displace.inputs['Scale'].default_value = scale
-        else:
-            displace.inputs['Scale'].default_value = 6
-        links.new(disp_image.outputs['Color'], displace.inputs['Height'])
-        links.new(displace.outputs['Displacement'], output.inputs['Displacement'])
-    except Exception as e:
-        print("[Warn] 材质节点连接失败:", e)
-        nodes.clear()
-        output = nodes.new(type='ShaderNodeOutputMaterial')
-        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
-        links = mat.node_tree.links
-        links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+            print("[Warn] 材质节点连接失败:", e)
+            nodes.clear()
+            output = nodes.new(type='ShaderNodeOutputMaterial')
+            bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+            links = mat.node_tree.links
+            links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
 
     part_obj.data.materials.clear()
     part_obj.data.materials.append(mat)
+
+    # === 如果需要，添加修改器 ===
+    if displacement_method == 'MODIFIER':
+        bpy.context.view_layer.objects.active = part_obj
+        
+        # 1. 添加表面细分修改器
+        subdiv_mod = part_obj.modifiers.new(name="Subdivision", type='SUBSURFACE')
+        subdiv_mod.levels = subdiv_levels
+        subdiv_mod.render_levels = subdiv_levels + 2
+
+        # 2. 如果置换贴图已加载，则创建纹理并添加置换修改器
+        if disp_image.image:
+            # 创建一个Blender纹理
+            tex_name = f"DispTex_{part_obj.name}"
+            if tex_name in bpy.data.textures:
+                disp_texture = bpy.data.textures[tex_name]
+            else:
+                disp_texture = bpy.data.textures.new(tex_name, type='IMAGE')
+            disp_texture.image = disp_image.image
+
+            # 3. 添加置换修改器
+            disp_mod = part_obj.modifiers.new(name="Displace", type='DISPLACE')
+            disp_mod.texture = disp_texture
+            disp_mod.texture_coords = 'UV'
+            disp_mod.mid_level = 0.5
+            if(normal_path.lower().endswith('.tif')):
+                disp_mod.strength = scale
+            else:
+                disp_mod.strength = 6
+        else:
+            print("[Warn] 未加载置换图像，跳过置换修改器。")
 
      # === 细分和UV归一化 ===
     bpy.ops.object.select_all(action='DESELECT')
@@ -199,7 +234,7 @@ def select_and_materialize_region(
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
         #细分值，可根据需要调整
-        # bpy.ops.mesh.subdivide(number_cuts=1)
+        # bpy.ops.mesh.subdivide(number_cuts=2)
         bpy.ops.object.mode_set(mode='OBJECT')
     except Exception as e:
         print("[Warn] 细分失败:", e)
@@ -235,8 +270,6 @@ def select_and_materialize_region(
             print("UV展开完成")
         except Exception as e:
             print("[Warn] UV展开失败:", e)
-
-    
     return part_obj
 
 def setup_camera(
