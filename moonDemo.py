@@ -26,7 +26,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 preload_images = {}
 def preload_image_resources():
     for img_path in [
-        "D:\\Moon\\ldem_256_60s_30s_0_20.tif"
     ]:
         if os.path.exists(img_path):
             try:
@@ -150,7 +149,7 @@ def setup_camera(
     return camera
 
 def select_and_materialize_region(
-    obj, 
+    obj,
     lat_min, lat_max, lon_min, lon_max, 
     texture_path, normal_path, 
     group_name="Selected_Faces_Group",
@@ -235,9 +234,10 @@ def select_and_materialize_region(
     elif os.path.exists(normal_path):
         try:
             disp_image.image = bpy.data.images.load(normal_path)
+            disp_image.image.colorspace_settings.name = 'Non-Color'
         except Exception as e:
             print("[Warn] 加载置换贴图失败:", e)
-    disp_image.image.colorspace_settings.name = 'Non-Color'
+    
     # 节点连接
     # 基础节点连接 (颜色)
     try:
@@ -256,7 +256,7 @@ def select_and_materialize_region(
             if normal_path.lower().endswith('.tif'):
                 displace.inputs['Scale'].default_value = scale
             else:
-                displace.inputs['Scale'].default_value = 6
+                displace.inputs['Scale'].default_value = 10
             links.new(disp_image.outputs['Color'], displace.inputs['Height'])
             links.new(displace.outputs['Displacement'], output.inputs['Displacement'])
         except Exception as e:
@@ -291,11 +291,11 @@ def select_and_materialize_region(
             # 将纹理赋给修改器
             disp_mod.texture = disp_texture
             disp_mod.texture_coords = 'UV'
-            disp_mod.mid_level = 0.5
+            disp_mod.mid_level = 0
             if normal_path.lower().endswith('.tif'):
                 disp_mod.strength = scale
             else:
-                disp_mod.strength = 6
+                disp_mod.strength = 10
         else:
             print("[Warn] 未加载置换图像，跳过置换修改器。")
 
@@ -308,8 +308,9 @@ def select_and_materialize_region(
     try:
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_all(action='SELECT')
-        #细分值，可根据需要调整
-        bpy.ops.mesh.subdivide(number_cuts=10)
+        #细分值，可根据需要调整,如果是修改器模式才需要去细分
+        if(displacement_method=='MODIFIER'):
+            bpy.ops.mesh.subdivide(number_cuts=8)
         bpy.ops.object.mode_set(mode='OBJECT')
     except Exception as e:
         print("[Warn] 细分失败:", e)
@@ -377,8 +378,8 @@ clean_scene()
 bpy.ops.mesh.primitive_uv_sphere_add(
     radius=1738, 
     location=(0, 0, 0), 
-    segments=360,      # 段数
-    ring_count=180     # 环数
+    segments=720,      # 段数
+    ring_count=360     # 环数
 )
 #获得UV球体对象
 uv_sphere = bpy.context.active_object 
@@ -388,9 +389,9 @@ img_list = list(preload_images.values())
 print(len(img_list))
 print("预加载图片数量:", len(img_list))
 #对非立体投影的部分可以不进行UV展开
-uv_sphere_part1=select_and_materialize_region(uv_sphere, -60, -30, 0, 20, 
-                                              "", 
-                                              img_list[0].filepath, 
+uv_sphere_part1=select_and_materialize_region(uv_sphere, 0, 45, 0, 45, 
+                                              "D:\\Moon\\0_45_0_90\\0_45_0_45\\lroc_color_poles_0.0n_45.0n_0.0_45.0.tif", 
+                                              "D:\\Moon\\0_45_0_90\\0_45_0_45\\ldem_512_0.0n_45.0n_0.0_45.0.png", 
                                               scale=1,
                                               unwrap=False,
                                               displacement_method='MODIFIER',

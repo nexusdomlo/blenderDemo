@@ -250,14 +250,14 @@ preload_image_resources()
 img_list = list(preload_images.values())
 print("预加载图片数量:", len(img_list))
 #对非立体投影的部分可以不进行UV展开
-uv_sphere_part1=select_and_materialize_region(uv_sphere, -75, -60, 0, 90, 
+uv_sphere_part1=select_and_materialize_region(uv_sphere, -75, -60, 0, 20, 
                                               "", 
                                               img_list[0].filepath, 
                                               scale=1,
                                               unwrap=False
                                               )
 #对极地立体投影的部分进行要进行一个UV展开
-uv_sphere_part2=select_and_materialize_region(uv_sphere, -90, -75, 0, 360, 
+uv_sphere_part2=select_and_materialize_region(uv_sphere, -90, -75, 0, 20, 
                                               "", 
                                               img_list[1].filepath,
                                               scale=1,

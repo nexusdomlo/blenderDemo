@@ -1,4 +1,5 @@
 import bpy # type: ignore
+import numpy as np # type: ignore
 from mathutils import Vector # type: ignore
 from bpy_extras.object_utils import world_to_camera_view # type: ignore
 
@@ -41,54 +42,39 @@ def is_in_view(obj, cam, scene):
     """
     检查一个物体是否在相机视锥体内，并加入了背面剔除逻辑。
     """
-    # # --- 新增：背面剔除判断 ---
-    # if "avg_local_normal" in obj:
-    #     # 1. 获取从相机到物体中心的向量
-    #     cam_to_obj_vec = obj.matrix_world.to_translation() - cam.matrix_world.to_translation()
-        
-    #     # 2. 获取物体在世界空间中的平均法线
-    #     #    只旋转，不平移或缩放
-    #     world_normal = obj.matrix_world.to_3x3() @ obj["avg_local_normal"]
-        
-    #     # 3. 计算点积
-    #     dot_product = cam_to_obj_vec.dot(world_normal)
-        
-    #     # 如果点积 > 0，说明相机在物体背面，直接剔除
-    #     if dot_product > 0:
-    #         return False
-    # # --- 背面剔除结束 ---
-    # 获取物体在世界坐标系中的8个包围盒顶点
     print("===================================================================")
     bbox_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-    print(f"调试: 物体 '{obj.name}' 的包围盒顶点 (世界坐标): {[str(corner) for corner in bbox_corners]}")
     # 将8个顶点投影到相机的2D视图上
     coords_2d = [world_to_camera_view(scene, cam, corner) for corner in bbox_corners]
-    # --- 核心逻辑修正 ---
-    print(f"调试: 物体 '{obj.name}' 的投影坐标 (归一化): {[str(c) for c in coords_2d]}")
+    if(obj.name=="0_45_45_90"):
+        print(f"调试: 物体 '{obj.name}' 的包围盒顶点 (世界坐标): {[str(corner) for corner in bbox_corners]}")
+        print(f"调试: 物体 '{obj.name}' 的投影坐标 (归一化): {[str(c) for c in coords_2d]}")
     print("===================================================================")
-
+    
     # 1. 检查所有顶点是否都在相机后面 (近裁剪面之外)
     if all(c.z < 0 for c in coords_2d):
         return False
-
-    # 2. 获取所有投影点在x, y轴上的最大和最小值
-    min_x = min(c.x for c in coords_2d)
-    max_x = max(c.x for c in coords_2d)
-    min_y = min(c.y for c in coords_2d)
-    max_y = max(c.y for c in coords_2d)
-
-    # 3. 检查投影后的包围盒是否与 [0, 1] 的视野范围完全分离
-    # 如果x方向完全在视野外 (要么全在右边，要么全在左边)
-    if max_x < 0 or min_x > 1:
-        return False
+    face1=[coords_2d[2],coords_2d[3],coords_2d[4],coords_2d[5],coords_2d[6],coords_2d[7]]
+    # 2. 检查所有顶点是否都在视锥体的同一侧 (左/右/上/下)
+    # 只有当所有点都在视锥体外部的同一侧时，物体才完全不可见。
     
-    # 如果y方向完全在视野外 (要么全在下边，要么全在上边)
-    if max_y < 0 or min_y > 1:
+    # 检查是否所有点都在右侧 (x > 1)
+    if all(c.x > 1 for c in face1):
+        return False
+        
+    # 检查是否所有点都在左侧 (x < 0)
+    if all(c.x < 0 for c in face1):
+        return False
+        
+    # 检查是否所有点都在上侧 (y > 1)
+    if all(c.y > 1 for c in face1):
+        return False
+        
+    # 检查是否所有点都在下侧 (y < 0)
+    if all(c.y < 0 for c in face1):
         return False
 
-    # 如果以上剔除条件都不满足，说明物体与视锥体相交，是可见的
     return True
-
 
 
 def calculate_distance(obj, camera):

@@ -1,27 +1,27 @@
 import subprocess
 import argparse
-#裁剪lroc，月球表面材质图
-
-# 原始tif路径和输出路径
-input_tif = "D:\\All_moon_128\\outputFile\\lroc_color_poles.tif"
-
-
 # 可自由修改的经纬度范围
 # lon_min = 0
 # lon_max = 90
 # lat_min = -75 
 # lat_max = -60
 
-
-
 if __name__ == "__main__":
+    # 原始tif路径和输出路径
+    input_tif = "D:\\All_moon_128\\outputFile\\lroc_color_poles.tif"
     parser = argparse.ArgumentParser(description="裁剪TIF文件")
-    parser.add_argument("lon_min", type=float, help="裁剪经度最小值")
-    parser.add_argument("lon_max", type=float, help="裁剪经度最大值")
     parser.add_argument("lat_min", type=float, help="裁剪纬度最小值")
     parser.add_argument("lat_max", type=float, help="裁剪纬度最大值")
+    parser.add_argument("lon_min", type=float, help="裁剪经度最小值")
+    parser.add_argument("lon_max", type=float, help="裁剪经度最大值")
     args = parser.parse_args()
-    output_tif = f"D:\\All_moon_128\\outputFile\\lroc_color_poles_{int(-args.lat_min)}s_{int(-args.lat_max)}s_{int(args.lon_min)}_{int(args.lon_max)}_.tif"
+    if(args.lat_min >=0):
+        danwei2='n'
+    else:
+        danwei2='s'
+    latitude_min_str = f"{str(abs(args.lat_min))}{danwei2}"
+    latitude_max_str = f"{str(abs(args.lat_max))}{danwei2}"
+    output_tif = f"D:\\All_moon_128\\outputFile\\lroc_color_poles_{latitude_min_str}_{latitude_max_str}_{(args.lon_min)}_{(args.lon_max)}.tif"
     
     # tif的像素尺寸
     width = 27360
