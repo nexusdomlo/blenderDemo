@@ -377,6 +377,33 @@ def add_sun_light(
 
     return sun
 
+def take_photos(
+    output_dir,
+    scene,
+    camera=None,
+    step=1
+):
+    # 设置渲染输出文件夹
+    output_dir = r"C:\tmp\Bennu"
+    os.makedirs(output_dir, exist_ok=True)
+
+    scene = bpy.context.scene
+    if(camera is not None):
+        print("可以考虑在图片中加上相机参数")
+    # 获取相机位置和旋转,以备后续使用
+    location = camera.matrix_world.translation
+    rotation_quaternion = camera.matrix_world.to_quaternion()
+    rotation_euler = rotation_quaternion.to_euler()
+    # 逐帧渲染
+    for frame in range(scene.frame_start, scene.frame_end + 1, step):
+        scene.frame_set(frame)
+        # 设置输出文件名
+        scene.render.filepath = os.path.join(output_dir, f"bennu_{frame:04d}.png")
+        bpy.ops.render.render(write_still=True)
+        print(f"已渲染帧 {frame}")
+
+    print("全部帧渲染完成。")
+
 def clean_scene(whiteList=None):
     """
     清空场景，保留白名单中的对象

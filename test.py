@@ -2,36 +2,6 @@ import bpy # type: ignore
 from mathutils import Vector # type: ignore
 from bpy_extras.object_utils import world_to_camera_view # type: ignore
 
-# 添加一个全局计数器用于调试
-DEBUG_COUNTER = 0
-
-def preprocess_normals():
-    """
-    预处理函数：计算所有相关网格的平均法线，并将其存储为自定义属性。
-    这个函数只需要运行一次。
-    """
-    root_obj = bpy.data.objects.get("Octree_Root")
-    if not root_obj:
-        print("预处理错误: 未找到 'Octree_Root'。")
-        return
-
-    meshes_to_process = [obj for obj in bpy.data.objects if obj.type == 'MESH' and root_obj in obj.users_collection]
-    
-    print("开始预处理模型法线...")
-    for obj in meshes_to_process:
-        if not obj.data.polygons:
-            continue
-            
-        # 计算局部空间中的平均法线
-        avg_normal = Vector((0.0, 0.0, 0.0))
-        for poly in obj.data.polygons:
-            avg_normal += poly.normal
-        avg_normal.normalize()
-        
-        # 将计算结果存储在物体的自定义属性中
-        obj["avg_local_normal"] = avg_normal
-        print(f"  - 为 '{obj.name}' 存储了平均法线: {avg_normal}")
-    print("法线预处理完成。")
 
 def is_in_view(obj, cam, scene):
     """
@@ -58,34 +28,24 @@ def is_in_view(obj, cam, scene):
     #         return False
     # # --- 背面剔除结束 ---
     # 获取物体在世界坐标系中的8个包围盒顶点
-    print("===================================================================")
     bbox_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-    print(f"调试: 物体 '{obj.name}' 的包围盒顶点 (世界坐标): {[str(corner) for corner in bbox_corners]}")
     # 将8个顶点投影到相机的2D视图上
     coords_2d = [world_to_camera_view(scene, cam, corner) for corner in bbox_corners]
     # --- 核心逻辑修正 ---
-    print(f"调试: 物体 '{obj.name}' 的投影坐标 (归一化): {[str(c) for c in coords_2d]}")
-    print("===================================================================")
 
     # 1. 检查所有顶点是否都在相机后面 (近裁剪面之外)
     if all(c.z < 0 for c in coords_2d):
         return False
 
-    # 2. 获取所有投影点在x, y轴上的最大和最小值
-    min_x = min(c.x for c in coords_2d)
-    max_x = max(c.x for c in coords_2d)
-    min_y = min(c.y for c in coords_2d)
-    max_y = max(c.y for c in coords_2d)
-
-    # 3. 检查投影后的包围盒是否与 [0, 1] 的视野范围完全分离
-    # 如果x方向完全在视野外 (要么全在右边，要么全在左边)
-    if max_x < 0 or min_x > 1:
+    face1=[coords_2d[2],coords_2d[3],coords_2d[4],coords_2d[5],coords_2d[7],coords_2d[6]]
+    if all(c.x < 0 for c in face1):
         return False
-    
-    # 如果y方向完全在视野外 (要么全在下边，要么全在上边)
-    if max_y < 0 or min_y > 1:
+    if all(c.x > 1 for c in face1):
         return False
-
+    if all(c.y < 0 for c in face1):
+        return False
+    if all(c.y > 1 for c in face1):
+        return False
     # 如果以上剔除条件都不满足，说明物体与视锥体相交，是可见的
     return True
 
@@ -103,6 +63,7 @@ def lod_update(scene):
     每一帧更新时调用的主函数。
     """
     print("-" * 40) # 打印分隔符，方便查看每一帧的输出
+    print(scene.frame_current)
     cam = scene.camera
     if not cam:
         print("调试: 未找到相机。")
@@ -136,9 +97,6 @@ def lod_update(scene):
     # 2. 对所有收集到的网格物体进行统一的可见性判断
     for mesh_child in meshes_to_process:
         is_visible = is_in_view(mesh_child, cam, scene)
-        
-        # 打印每个物体的判断结果
-        print(f"  - 物体: '{mesh_child.name}', 是否在视野内: {is_visible}")
 
         if is_visible:
             if mesh_child.hide_viewport:
@@ -153,12 +111,15 @@ def lod_update(scene):
 
 def register():
     unregister()
-    bpy.app.handlers.depsgraph_update_post.append(lod_update)
+    bpy.app.handlers.frame_change_post.append(lod_update)
+
+    # bpy.app.handlers.depsgraph_update_post.append(lod_update)
     print("LOD Handler Registered (Real-time).")
 
 def unregister():
     try:
-        bpy.app.handlers.depsgraph_update_post.remove(lod_update)
+        bpy.app.handlers.frame_change_post.remove(lod_update)
+        # bpy.app.handlers.depsgraph_update_post.remove(lod_update)
         print("LOD Handler Unregistered.")
     except (ValueError, AttributeError):
         pass
@@ -166,11 +127,6 @@ def unregister():
 if __name__ == "__main__":
     # 彻底重启前，先注销一次，确保干净
     unregister()
-    # --- 新增：在这里调用预处理函数 ---
-    print("="*20 + " 正在执行预处理 " + "="*20)
-    preprocess_normals()
-    print("="*20 + " 预处理完成 " + "="*20)
-    # ------------------------------------
     register()
     # 首次运行时手动调用一次以立即生效
     if bpy.context.scene:

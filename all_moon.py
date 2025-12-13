@@ -413,35 +413,35 @@ other_camera.data.clip_end = 1000000
 bpy.context.view_layer.objects.active = other_camera
 
 # 设置场景的帧范围,准备拍摄渲染
-# scene.frame_set(1)
-# scene.frame_start = 1
-# scene.frame_end = end_time
-# # 拍摄指定数量的照片
-# num_photos = 1000
-# frames = [round(1 + i * (scene.frame_end - 1) / (num_photos - 1)) for i in range(num_photos)]
-# for idx, f in enumerate(frames):
-#     scene.frame_set(f)
-#     latlon = get_camera_latlon(camera, 174)
-#     lat_str = f"{latlon[0]:.4f}"
-#     lon_str = f"{latlon[1]:.4f}"
-#     matrix = camera.matrix_world
-#     rotation_euler = matrix.to_euler('ZYX')
-#     rotation_deg = tuple(math.degrees(a) for a in rotation_euler)
-#     rot_str = "_".join([f"{r:.2f}" for r in rotation_deg])
-#     cam_loc = matrix.translation
-#     loc_str = "_".join([f"{c:.2f}" for c in (cam_loc.x, cam_loc.y, cam_loc.z)])
-#     out_path = os.path.join(
-#         OUTPUT_DIR,
-#         f"frame_{idx+1:04d}_{lat_str}_{lon_str}_{rot_str}_{loc_str}.png"
-#     )
-#     scene.render.filepath = out_path
-#     print(f"Frame {f} Camera Euler Rotation (degrees): {rotation_deg}")
-#     start_time = time.time()
-#     print(f"[Info] 渲染第 {idx+1}/{num_photos}")
-#     try:
-#         bpy.ops.render.render(write_still=True)
-#         elapsed = time.time() - start_time
-#         print(f"[Info] 渲染完成: {out_path}，耗时 {elapsed:.2f} 秒")
-#     except Exception as e:
-#         print(f"[Error] 渲染失败 frame {idx+1}: {e}")
-# print("[Info] 渲染结束")
+scene.frame_set(1)
+scene.frame_start = 1
+scene.frame_end = end_time
+# 拍摄指定数量的照片
+num_photos = 1000
+frames = [round(1 + i * (scene.frame_end - 1) / (num_photos - 1)) for i in range(num_photos)]
+for idx, f in enumerate(frames):
+    scene.frame_set(f)
+    latlon = get_camera_latlon(camera, 174)
+    lat_str = f"{latlon[0]:.4f}"
+    lon_str = f"{latlon[1]:.4f}"
+    matrix = camera.matrix_world
+    rotation_euler = matrix.to_euler('ZYX')
+    rotation_deg = tuple(math.degrees(a) for a in rotation_euler)
+    rot_str = "_".join([f"{r:.2f}" for r in rotation_deg])
+    cam_loc = matrix.translation
+    loc_str = "_".join([f"{c:.2f}" for c in (cam_loc.x, cam_loc.y, cam_loc.z)])
+    out_path = os.path.join(
+        OUTPUT_DIR,
+        f"frame_{idx+1:04d}_{lat_str}_{lon_str}_{rot_str}_{loc_str}.png"
+    )
+    scene.render.filepath = out_path
+    print(f"Frame {f} Camera Euler Rotation (degrees): {rotation_deg}")
+    start_time = time.time()
+    print(f"[Info] 渲染第 {idx+1}/{num_photos}")
+    try:
+        bpy.ops.render.render(write_still=True)
+        elapsed = time.time() - start_time
+        print(f"[Info] 渲染完成: {out_path}，耗时 {elapsed:.2f} 秒")
+    except Exception as e:
+        print(f"[Error] 渲染失败 frame {idx+1}: {e}")
+print("[Info] 渲染结束")

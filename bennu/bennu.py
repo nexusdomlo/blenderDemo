@@ -1,5 +1,6 @@
 import bpy  # type: ignore
 import math
+import os
 start_frame = 0
 end_frame = 240
 obj_path = r"D:\Asteroid\BENNU\Bennu_asteroid_obj_with_texture\Bennu_texture_obj_flip\test1_rotate_translate.obj"  # 修改为你的实际路径
@@ -176,6 +177,33 @@ def import_model(obj_path,x, y, z, rot_x, rot_y, rot_z, scale_x, scale_y, scale_
     model.scale = (scale_x, scale_y, scale_z)  # 缩放
     return model
 
+def take_photos(
+    output_dir,
+    scene,
+    camera=None,
+    step=1
+):
+    # 设置渲染输出文件夹
+    output_dir = r"C:\tmp\Bennu"
+    os.makedirs(output_dir, exist_ok=True)
+
+    scene = bpy.context.scene
+    if(camera is not None):
+        print("可以考虑在图片中加上相机参数")
+    # 获取相机位置和旋转,以备后续使用
+    location = camera.matrix_world.translation
+    rotation_quaternion = camera.matrix_world.to_quaternion()
+    rotation_euler = rotation_quaternion.to_euler()
+    # 逐帧渲染
+    for frame in range(scene.frame_start, scene.frame_end + 1, step):
+        scene.frame_set(frame)
+        # 设置输出文件名
+        scene.render.filepath = os.path.join(output_dir, f"bennu_{frame:04d}.png")
+        bpy.ops.render.render(write_still=True)
+        print(f"已渲染帧 {frame}")
+
+    print("全部帧渲染完成。")
+
 clean_scene(whiteList=['Camera', 'Light'])
 bennu_obj=import_model(obj_path,22.506, 8.247,1.21,0.0, 0.0, math.radians(-3.5),26.5, 26.22, 26.7)
 # 设置旋转动画
@@ -192,7 +220,7 @@ print("Bennu 模型已导入并设置旋转动画。")
 print("Bennu 模型已导入并设置位置。")
 
 #设置相机
-setup_camera(
+camera = setup_camera(
     sensor_width=8,
     focal_length=20.0,
     resolution_x=1024,
@@ -213,4 +241,11 @@ add_sun_light(
     angle_deg=0.53,
     color=(1, 1, 1),
     rotation_euler=(0, 90, 0)
+)
+
+take_photos(
+    output_dir=r"C:\tmp\Bennu",
+    scene=scene,
+    camera=camera,
+    step=1
 )
